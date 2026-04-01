@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Remapper</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #13131f; --surface: #1c1c2e; --surface2: #252540; --border: rgba(255,255,255,0.07);
+  --accent: #e94560; --purple: #a855f7; --green: #22c55e; --red: #ef4444;
+  --yellow: #f59e0b; --blue: #3b82f6; --text: #e8e8f0; --muted: #7c7c9a; --radius: 8px;
+  --font: -apple-system, 'Segoe UI', system-ui, sans-serif;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 12px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+.header { padding: 14px 18px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.header h1 { font-size: 13px; font-weight: 700; background: linear-gradient(90deg, #e94560, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.header p { color: var(--muted); font-size: 11px; margin-top: 3px; line-height: 1.5; }
+
+.steps { display: flex; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.step { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.step.active { color: var(--accent); }
+.step.done { color: var(--green); }
+.step-num { width: 17px; height: 17px; border-radius: 50%; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; }
+.step.active .step-num { background: var(--accent); color: #fff; }
+.step.done .step-num { background: var(--green); color: #fff; }
+.step-line { flex: 1; height: 1px; background: var(--border); margin: 0 8px; }
+
+.body { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+.label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 7px; display: flex; align-items: center; gap: 6px; }
+.label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.label-row .label { margin-bottom: 0; flex: 1; }
+.label-row .label::after { display: none; }
+.select-all-btn { font-size: 10px; color: var(--purple); background: none; border: none; cursor: pointer; font-family: var(--font); font-weight: 600; padding: 0; text-decoration: underline; }
+.select-all-btn:hover { color: #c084fc; }
+
+/* Items — shared style for both local and library */
+.item-list { display: flex; flex-direction: column; gap: 4px; max-height: 175px; overflow-y: auto; }
+.item { display: flex; align-items: center; gap: 9px; padding: 8px 11px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: border-color 0.12s; user-select: none; }
+.item:hover { border-color: rgba(255,255,255,0.15); }
+.item input { width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; pointer-events: none; }
+.item.sel-local   { border-color: var(--accent);  background: rgba(233,69,96,0.10); }
+.item.sel-lib     { border-color: var(--purple);  background: rgba(168,85,247,0.10); }
+.item input[type="checkbox"] { accent-color: var(--accent); }
+.item.sel-lib input[type="checkbox"] { accent-color: var(--purple); }
+.item-name { flex: 1; font-weight: 600; }
+.item-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+.item-count { font-size: 10px; color: var(--muted); background: var(--surface2); padding: 2px 6px; border-radius: 20px; flex-shrink: 0; }
+
+/* Selected lib pills */
+.selected-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.35); border-radius: 20px; font-size: 10px; color: #c084fc; }
+.pill-x { cursor: pointer; opacity: 0.7; font-size: 11px; line-height: 1; }
+.pill-x:hover { opacity: 1; }
+
+.btn { padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font); }
+.btn:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.preview-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.stats-row { display: flex; border-bottom: 1px solid var(--border); }
+.stat { flex: 1; text-align: center; padding: 10px 6px; border-right: 1px solid var(--border); }
+.stat:last-child { border-right: none; }
+.stat-n { font-size: 20px; font-weight: 800; line-height: 1; }
+.stat-n.green { color: var(--green); }
+.stat-n.red { color: var(--red); }
+.stat-n.yellow { color: var(--yellow); }
+.stat-n.muted { color: var(--muted); }
+.stat-l { font-size: 9px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+.tbl-wrap { max-height: 195px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th { position: sticky; top: 0; padding: 6px 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); background: rgba(0,0,0,0.3); text-align: left; }
+tbody tr { border-top: 1px solid rgba(255,255,255,0.04); }
+tbody tr:hover { background: rgba(255,255,255,0.025); }
+td { padding: 5px 10px; font-size: 11px; }
+td.mono { font-family: 'SF Mono','Fira Code',monospace; font-size: 10px; color: #c4b5fd; }
+td.arrow { color: var(--muted); font-size: 10px; width: 20px; text-align: center; }
+td.target { font-family: 'SF Mono','Fira Code',monospace; font-size: 10px; color: #86efac; }
+td.target.dim { color: var(--muted); font-style: italic; }
+.badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 20px; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.badge.remap   { background: rgba(34,197,94,0.14);  color: var(--green); }
+.badge.noalias { background: rgba(124,124,154,0.14); color: var(--muted); }
+.badge.nomatch { background: rgba(239,68,68,0.14);  color: var(--red); }
+.badge.lib     { background: rgba(59,130,246,0.14); color: var(--blue); }
+
+.result-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 20px; text-align: center; }
+.result-icon { font-size: 36px; margin-bottom: 10px; }
+.result-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.result-sub { color: var(--muted); font-size: 11px; line-height: 1.8; }
+.err-log { margin-top: 12px; text-align: left; max-height: 110px; overflow-y: auto; background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.18); border-radius: 6px; padding: 8px 10px; font-family: monospace; font-size: 10px; color: var(--red); white-space: pre-wrap; }
+
+.notice { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.22); border-radius: var(--radius); padding: 9px 13px; font-size: 11px; color: var(--yellow); line-height: 1.6; }
+.notice strong { font-weight: 700; }
+.notice.err { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.22); color: var(--red); }
+.loader { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; padding: 6px 0; }
+.spin { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--accent); border-radius: 50%; animation: rot 0.7s linear infinite; flex-shrink: 0; }
+@keyframes rot { to { transform: rotate(360deg); } }
+.empty { color: var(--muted); font-size: 11px; text-align: center; padding: 10px; font-style: italic; }
+
+.footer { padding: 10px 18px; border-top: 1px solid var(--border); display: flex; gap: 7px; flex-shrink: 0; }
+.footer button { flex: 1; padding: 9px 12px; border-radius: var(--radius); border: none; font-size: 12px; font-weight: 700; cursor: pointer; transition: opacity 0.12s, transform 0.1s; font-family: var(--font); }
+.footer button:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-ghost { background: var(--surface2); color: var(--muted); }
+.btn-ghost:hover:not(:disabled) { color: var(--text); }
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--purple)); color: #fff; }
+.btn-primary:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.btn-danger { background: linear-gradient(135deg, #ef4444, #f97316); color: #fff; }
+.btn-danger:hover:not(:disabled) { opacity: 0.88; }
+.btn-success { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Token Remapper → Foundations</h1>
+  <p>Segue la catena di alias dalle component token verso le token Foundations (semantic, primitive o altro), cercandole per nome in tutte le collezioni selezionate.</p>
+</div>
+
+<div class="steps">
+  <div class="step" id="si1"><div class="step-num">1</div>Selezione</div>
+  <div class="step-line"></div>
+  <div class="step" id="si2"><div class="step-num">2</div>Anteprima</div>
+  <div class="step-line"></div>
+  <div class="step" id="si3"><div class="step-num">3</div>Risultato</div>
+</div>
+
+<!-- STEP 1 -->
+<div id="step1" class="body">
+
+  <div>
+    <div class="label">Collezioni component token (questo file)</div>
+    <div class="item-list" id="localList">
+      <div class="loader"><div class="spin"></div>Caricamento…</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label-row">
+      <div class="label">Collezioni Foundations (libreria)</div>
+      <button class="select-all-btn" id="selAllBtn" onclick="selectAllLibs()" style="display:none">Seleziona tutte</button>
+    </div>
+    <div id="libLoadArea">
+      <button class="btn" id="loadLibBtn" onclick="loadLibraries()">🔍 Carica librerie abilitate</button>
+    </div>
+    <div id="libList" style="margin-top:7px"></div>
+    <div id="pillsArea" class="selected-pills" style="margin-top:7px"></div>
+  </div>
+
+  <div class="notice" id="notice1">
+    <strong>Seleziona tutte le collezioni Foundations</strong> che potrebbero contenere le token
+    referenziate (semantic, primitive, spacing, ecc.).
+    Il file Foundations deve essere pubblicato e abilitato via Assets → Librerie → ✓.
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div id="step2" class="body" style="display:none">
+  <div class="preview-card">
+    <div class="stats-row">
+      <div class="stat"><div class="stat-n green" id="sRemap">–</div><div class="stat-l">Da rimappare</div></div>
+      <div class="stat"><div class="stat-n red" id="sNoMatch">–</div><div class="stat-l">No match</div></div>
+      <div class="stat"><div class="stat-n yellow" id="sNoAlias">–</div><div class="stat-l">Valore diretto</div></div>
+      <div class="stat"><div class="stat-n muted" id="sAlreadyLib">–</div><div class="stat-l">Già library</div></div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Component token</th>
+            <th style="width:16px"></th>
+            <th>Semantic / Primitive target</th>
+            <th>Stato</th>
+          </tr>
+        </thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="notice" id="notice2" style="display:none">
+    Le token <strong>No match</strong> non sono state trovate in nessuna delle collezioni Foundations selezionate.<br>
+    Verifica i nomi o aggiungi altre collezioni.
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div id="step3" class="body" style="display:none">
+  <div class="result-box" id="resultBox">
+    <div class="loader" style="justify-content:center"><div class="spin"></div>Remapping in corso…</div>
+  </div>
+</div>
+
+<div class="footer">
+  <button class="btn-ghost" id="btnBack" onclick="goBack()" style="display:none">← Indietro</button>
+  <button class="btn-ghost" id="btnClose" onclick="doClose()">Chiudi</button>
+  <button class="btn-primary" id="btnNext" onclick="goNext()" disabled>Avanti →</button>
+</div>
+
+<script>
+var state = {
+  step: 1,
+  localCollections: [],
+  selectedLocalIds: [],
+  libraryCollections: [],
+  selectedLibKeys: [],      // ARRAY — multi-selezione
+  previewStats: null
+};
+
+window.onmessage = function(event) {
+  var msg = event.data.pluginMessage;
+  if (!msg) { return; }
+  if      (msg.type === 'LOCAL_COLLECTIONS')   { onLocalCollections(msg.payload); }
+  else if (msg.type === 'LIBRARY_COLLECTIONS') { onLibraryCollections(msg.payload); }
+  else if (msg.type === 'PREVIEW_RESULT')      { onPreviewResult(msg.payload); }
+  else if (msg.type === 'EXECUTE_RESULT')      { onExecuteResult(msg.payload); }
+  else if (msg.type === 'ERROR')               { onError(msg.payload); }
+};
+
+function send(type, payload) {
+  parent.postMessage({ pluginMessage: { type: type, payload: payload } }, '*');
+}
+
+send('INIT');
+
+/* ── Collezioni locali ── */
+function onLocalCollections(collections) {
+  state.localCollections = collections;
+  var container = document.getElementById('localList');
+  if (!collections.length) { container.innerHTML = '<div class="empty">Nessuna collezione trovata.</div>'; return; }
+  var html = '';
+  for (var i = 0; i < collections.length; i++) {
+    var c = collections[i];
+    html += '<div class="item" id="lci-' + i + '" data-id="' + c.id + '" onclick="toggleLocal(this)">' +
+              '<input type="checkbox">' +
+              '<span class="item-name">' + escHtml(c.name) + '</span>' +
+              '<span class="item-count">' + c.variableCount + '</span>' +
+            '</div>';
+  }
+  container.innerHTML = html;
+}
+
+function toggleLocal(el) {
+  var id = el.getAttribute('data-id');
+  var idx = state.selectedLocalIds.indexOf(id);
+  var chk = el.querySelector('input');
+  if (idx === -1) { state.selectedLocalIds.push(id); chk.checked = true; el.classList.add('sel-local'); }
+  else { state.selectedLocalIds.splice(idx, 1); chk.checked = false; el.classList.remove('sel-local'); }
+  updateNext();
+}
+
+/* ── Librerie Foundations — MULTI selezione ── */
+function loadLibraries() {
+  document.getElementById('loadLibBtn').disabled = true;
+  document.getElementById('loadLibBtn').textContent = '⏳ Caricamento…';
+  document.getElementById('libList').innerHTML = '<div class="loader"><div class="spin"></div>Ricerca librerie…</div>';
+  send('LOAD_LIBRARY_COLLECTIONS');
+}
+
+function onLibraryCollections(collections) {
+  state.libraryCollections = collections;
+  document.getElementById('loadLibBtn').style.display = 'none';
+  document.getElementById('selAllBtn').style.display = collections.length ? '' : 'none';
+
+  var container = document.getElementById('libList');
+  if (!collections.length) {
+    container.innerHTML = '<div class="empty">Nessuna libreria trovata. Abilita il file Foundations via Assets → Librerie.</div>';
+    return;
+  }
+
+  // Raggruppa per libraryName
+  var groups = Object.create(null);
+  var groupOrder = [];
+  for (var i = 0; i < collections.length; i++) {
+    var libName = collections[i].libraryName;
+    if (!groups[libName]) { groups[libName] = []; groupOrder.push(libName); }
+    groups[libName].push(collections[i]);
+  }
+
+  var html = '';
+  for (var g = 0; g < groupOrder.length; g++) {
+    var gName = groupOrder[g];
+    var gCols = groups[gName];
+    // Intestazione gruppo se ci sono più librerie
+    if (groupOrder.length > 1) {
+      html += '<div style="font-size:10px;color:var(--muted);margin:7px 0 4px;font-weight:600;padding-left:2px">📁 ' + escHtml(gName) + '</div>';
+    }
+    for (var j = 0; j < gCols.length; j++) {
+      var c = gCols[j];
+      html += '<div class="item" id="li-' + c.key + '" data-key="' + c.key + '" data-name="' + escHtml(c.name) + '" onclick="toggleLib(this)">' +
+                '<input type="checkbox">' +
+                '<div class="item-name">' + escHtml(c.name) + '</div>' +
+              '</div>';
+    }
+  }
+  container.innerHTML = html;
+}
+
+function toggleLib(el) {
+  var key = el.getAttribute('data-key');
+  var name = el.getAttribute('data-name');
+  var idx = state.selectedLibKeys.indexOf(key);
+  var chk = el.querySelector('input');
+  if (idx === -1) {
+    state.selectedLibKeys.push(key);
+    chk.checked = true;
+    el.classList.add('sel-lib');
+  } else {
+    state.selectedLibKeys.splice(idx, 1);
+    chk.checked = false;
+    el.classList.remove('sel-lib');
+  }
+  renderPills();
+  updateNext();
+}
+
+function selectAllLibs() {
+  var items = document.querySelectorAll('#libList .item');
+  var allSelected = (state.selectedLibKeys.length === state.libraryCollections.length);
+  state.selectedLibKeys = [];
+  for (var i = 0; i < items.length; i++) {
+    var el = items[i];
+    var key = el.getAttribute('data-key');
+    var chk = el.querySelector('input');
+    if (allSelected) {
+      chk.checked = false;
+      el.classList.remove('sel-lib');
+    } else {
+      state.selectedLibKeys.push(key);
+      chk.checked = true;
+      el.classList.add('sel-lib');
+    }
+  }
+  document.getElementById('selAllBtn').textContent = allSelected ? 'Seleziona tutte' : 'Deseleziona tutte';
+  renderPills();
+  updateNext();
+}
+
+function renderPills() {
+  var area = document.getElementById('pillsArea');
+  if (!state.selectedLibKeys.length) { area.innerHTML = ''; return; }
+  var html = '';
+  for (var i = 0; i < state.selectedLibKeys.length; i++) {
+    var key = state.selectedLibKeys[i];
+    var el = document.getElementById('li-' + key);
+    var name = el ? el.getAttribute('data-name') : key;
+    html += '<span class="pill">' + escHtml(name) + '<span class="pill-x" onclick="removePill(\'' + key + '\')">×</span></span>';
+  }
+  area.innerHTML = html;
+}
+
+function removePill(key) {
+  var el = document.getElementById('li-' + key);
+  if (el) {
+    el.querySelector('input').checked = false;
+    el.classList.remove('sel-lib');
+  }
+  var idx = state.selectedLibKeys.indexOf(key);
+  if (idx !== -1) { state.selectedLibKeys.splice(idx, 1); }
+  renderPills();
+  updateNext();
+}
+
+/* ── Navigation ── */
+function updateNext() {
+  var btn = document.getElementById('btnNext');
+  if (state.step === 1) {
+    btn.disabled = (state.selectedLocalIds.length === 0 || state.selectedLibKeys.length === 0);
+  } else if (state.step === 2) {
+    btn.disabled = (!state.previewStats || state.previewStats.remap === 0);
+  }
+}
+
+function goNext() {
+  if (state.step === 1) { doPreview(); }
+  else if (state.step === 2) { doExecute(); }
+}
+function goBack() { if (state.step === 2) { setStep(1); } }
+
+function setStep(n) {
+  state.step = n;
+  document.getElementById('step1').style.display = (n === 1) ? 'flex' : 'none';
+  document.getElementById('step2').style.display = (n === 2) ? 'flex' : 'none';
+  document.getElementById('step3').style.display = (n === 3) ? 'flex' : 'none';
+  for (var i = 1; i <= 3; i++) {
+    var el = document.getElementById('si' + i);
+    el.className = 'step';
+    if (i < n) { el.classList.add('done'); } else if (i === n) { el.classList.add('active'); }
+  }
+  var btnBack = document.getElementById('btnBack');
+  var btnNext = document.getElementById('btnNext');
+  var btnClose = document.getElementById('btnClose');
+  btnBack.style.display = (n === 2) ? '' : 'none';
+  if (n === 3) {
+    btnNext.style.display = 'none'; btnBack.style.display = 'none';
+    btnClose.className = 'btn-success';
+  } else {
+    btnNext.style.display = '';
+    btnNext.textContent = (n === 1) ? 'Anteprima →' : '⚡ Esegui remapping';
+    btnNext.className   = (n === 1) ? 'btn-primary'  : 'btn-danger';
+    btnClose.style.display = '';
+    updateNext();
+  }
+}
+
+/* ── Preview ── */
+function doPreview() {
+  document.getElementById('previewBody').innerHTML =
+    '<tr><td colspan="4"><div class="loader" style="padding:6px 0"><div class="spin"></div>Analisi in corso su ' + state.selectedLibKeys.length + ' collez. Foundations…</div></td></tr>';
+  setStep(2);
+  document.getElementById('btnNext').disabled = true;
+  send('PREVIEW_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys });
+}
+
+function onPreviewResult(data) {
+  state.previewStats = data.stats;
+  var s = data.stats;
+  document.getElementById('sRemap').textContent     = s.remap;
+  document.getElementById('sNoMatch').textContent   = s.noMatch;
+  document.getElementById('sNoAlias').textContent   = s.noAlias;
+  document.getElementById('sAlreadyLib').textContent = s.alreadyLib;
+
+  var rows = data.rows;
+  var tbody = document.getElementById('previewBody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty">Nessuna variabile trovata.</td></tr>'; }
+  else {
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var badgeCls, badgeLabel, targetHtml;
+      if (r.status === 'remap') {
+        badgeCls = 'remap'; badgeLabel = '✓ Rimappa';
+        targetHtml = '<td class="target">' + escHtml(r.aliasTargetName) + '</td>';
+      } else if (r.status === 'no_alias') {
+        badgeCls = 'noalias'; badgeLabel = 'Valore diretto';
+        targetHtml = '<td class="target dim">—</td>';
+      } else if (r.status === 'no_match') {
+        badgeCls = 'nomatch'; badgeLabel = 'No match';
+        targetHtml = '<td class="target dim">' + escHtml(r.aliasTargetName || '—') + '</td>';
+      } else {
+        badgeCls = 'lib'; badgeLabel = 'Già library';
+        targetHtml = '<td class="target dim">—</td>';
+      }
+      html += '<tr><td class="mono">' + escHtml(r.localName) + '</td><td class="arrow">→</td>' + targetHtml + '<td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
+    }
+    tbody.innerHTML = html;
+  }
+  if (s.noMatch > 0) { document.getElementById('notice2').style.display = 'block'; }
+  updateNext();
+}
+
+/* ── Execute ── */
+function doExecute() {
+  setStep(3);
+  send('EXECUTE_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys });
+}
+
+function onExecuteResult(data) {
+  var hasErrors = data.errors && data.errors.length > 0;
+  var errHtml = '';
+  if (hasErrors) {
+    var lines = '';
+    for (var i = 0; i < data.errors.length; i++) { lines += '• ' + data.errors[i].name + ': ' + data.errors[i].error + '\n'; }
+    errHtml = '<div class="err-log">' + escHtml(lines) + '</div>';
+  }
+  document.getElementById('resultBox').innerHTML =
+    '<div class="result-icon">' + (hasErrors ? '⚠️' : '✅') + '</div>' +
+    '<div class="result-title">' + (hasErrors ? 'Completato con avvisi' : 'Remapping completato!') + '</div>' +
+    '<div class="result-sub">' +
+      '<span style="color:var(--green);font-weight:700">' + data.remapped + ' component token</span> ora puntano alle Foundations.<br>' +
+      (data.skipped > 0 ? '<span style="color:var(--muted)">' + data.skipped + ' saltate</span> (no alias o no match).' : '') +
+    '</div>' + errHtml;
+}
+
+function onError(msg) {
+  if (state.step === 3) {
+    document.getElementById('resultBox').innerHTML =
+      '<div class="result-icon">❌</div><div class="result-title">Errore</div><div class="result-sub">' + escHtml(msg) + '</div>';
+  } else {
+    var n = document.getElementById('notice1');
+    n.className = 'notice err';
+    n.innerHTML = '<strong>Errore:</strong> ' + escHtml(msg);
+  }
+}
+
+function doClose() { send('CLOSE'); }
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

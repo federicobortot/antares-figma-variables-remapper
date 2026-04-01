@@ -1,0 +1,9 @@
+{
+  "name": "Token Remapper → Foundations",
+  "id": "token-remapper-foundations",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "permissions": ["teamlibrary"]
+}
