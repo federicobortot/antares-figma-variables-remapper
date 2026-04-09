@@ -327,7 +327,7 @@ function analyzeVarsReverse(componentVars, targetVarByName, targetVarIds, localV
         if (targetVarIds[value.id]) {
           modeAnalysis.push({ modeId: modeId, aliasTargetName: null, localTargetId: null, status: 'already_local' });
         } else {
-          var sourceVar = localVarById[value.id];
+          var sourceVar = localVarById[value.id] || figma.variables.getVariableById(value.id);
           if (!sourceVar) {
             modeAnalysis.push({ modeId: modeId, aliasTargetName: null, localTargetId: null, status: 'unresolvable' });
           } else {
