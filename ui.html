@@ -82,6 +82,12 @@ td.arrow { color: var(--muted); font-size: 10px; width: 20px; text-align: center
 td.target { font-family: 'SF Mono','Fira Code',monospace; font-size: 10px; color: #86efac; }
 td.target.dim { color: var(--muted); font-style: italic; }
 .badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 20px; font-size: 9px; font-weight: 700; white-space: nowrap; }
+td.chk-cell { width: 26px; text-align: center; padding: 0 4px; }
+th.chk-cell { width: 26px; text-align: center; padding: 0 4px; }
+tbody tr.selectable { cursor: pointer; }
+tbody tr.selectable:hover { background: rgba(255,255,255,0.04); }
+tbody tr.row-checked { background: rgba(233,69,96,0.07); }
+tbody tr.row-checked:hover { background: rgba(233,69,96,0.11); }
 .badge.remap   { background: rgba(34,197,94,0.14);  color: var(--green); }
 .badge.noalias { background: rgba(124,124,154,0.14); color: var(--muted); }
 .badge.nomatch { background: rgba(239,68,68,0.14);  color: var(--red); }
@@ -182,6 +188,7 @@ td.target.dim { color: var(--muted); font-style: italic; }
       <table>
         <thead>
           <tr>
+            <th class="chk-cell"><input type="checkbox" id="chkAll" onclick="toggleAllRows(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
             <th>Component token</th>
             <th style="width:16px"></th>
             <th id="thTarget">Semantic / Primitive target</th>
@@ -219,7 +226,9 @@ var state = {
   selectedLocalIds: [],
   libraryCollections: [],
   selectedLibKeys: [],      // ARRAY — multi-selezione
-  previewStats: null
+  previewStats: null,
+  previewRows: [],          // tutte le righe rimappabili
+  selectedRowIds: {}        // id -> true per le righe spuntate
 };
 
 window.onmessage = function(event) {
@@ -386,7 +395,8 @@ function updateNext() {
       btn.disabled = (state.selectedLocalIds.length === 0 || state.selectedLibKeys.length === 0);
     }
   } else if (state.step === 2) {
-    btn.disabled = (!state.previewStats || state.previewStats.remap === 0);
+    var nSelected = Object.keys(state.selectedRowIds).length;
+    btn.disabled = (nSelected === 0);
   }
 }
 
@@ -459,7 +469,7 @@ function doPreview() {
     ? 'Analisi in corso…'
     : 'Analisi in corso su ' + state.selectedLibKeys.length + ' collez. Foundations…';
   document.getElementById('previewBody').innerHTML =
-    '<tr><td colspan="4"><div class="loader" style="padding:6px 0"><div class="spin"></div>' + loadingMsg + '</div></td></tr>';
+    '<tr><td colspan="5"><div class="loader" style="padding:6px 0"><div class="spin"></div>' + loadingMsg + '</div></td></tr>';
   setStep(2);
   document.getElementById('btnNext').disabled = true;
   if (isReverse) {
@@ -471,54 +481,138 @@ function doPreview() {
 
 function onPreviewResult(data) {
   state.previewStats = data.stats;
+  state.previewRows = data.rows;
+  state.selectedRowIds = {};
+
   var s = data.stats;
-  document.getElementById('sRemap').textContent     = s.remap;
-  document.getElementById('sNoMatch').textContent   = s.noMatch;
-  document.getElementById('sNoAlias').textContent   = s.noAlias;
+  document.getElementById('sRemap').textContent      = s.remap;
+  document.getElementById('sNoMatch').textContent    = s.noMatch;
+  document.getElementById('sNoAlias').textContent    = s.noAlias;
   document.getElementById('sAlreadyLib').textContent = s.alreadyLib;
 
   var rows = data.rows;
   var tbody = document.getElementById('previewBody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty">Nessuna variabile trovata.</td></tr>'; }
-  else {
-    var html = '';
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      var badgeCls, badgeLabel, targetHtml;
-      if (r.status === 'remap') {
-        badgeCls = 'remap'; badgeLabel = '✓ Rimappa';
-        targetHtml = '<td class="target">' + escHtml(r.aliasTargetName) + '</td>';
-      } else if (r.status === 'no_alias') {
-        badgeCls = 'noalias'; badgeLabel = 'Valore diretto';
-        targetHtml = '<td class="target dim">—</td>';
-      } else if (r.status === 'no_match') {
-        badgeCls = 'nomatch'; badgeLabel = 'No match';
-        targetHtml = '<td class="target dim">' + escHtml(r.aliasTargetName || '—') + '</td>';
-      } else if (r.status === 'already_local') {
-        badgeCls = 'lib'; badgeLabel = 'Già locale';
-        targetHtml = '<td class="target dim">—</td>';
-      } else if (r.status === 'unresolvable') {
-        badgeCls = 'nomatch'; badgeLabel = 'Irrisolvibile';
-        targetHtml = '<td class="target dim">—</td>';
-      } else {
-        badgeCls = 'lib'; badgeLabel = 'Già library';
-        targetHtml = '<td class="target dim">—</td>';
-      }
-      html += '<tr><td class="mono">' + escHtml(r.localName) + '</td><td class="arrow">→</td>' + targetHtml + '<td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">Nessuna variabile trovata.</td></tr>'; updateNext(); return; }
+
+  var html = '';
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var badgeCls, badgeLabel, targetHtml;
+    var isRemappable = r.canRemap;
+    if (isRemappable) { state.selectedRowIds[r.localId] = true; }
+    if (r.status === 'remap') {
+      badgeCls = 'remap'; badgeLabel = '✓ Rimappa';
+      targetHtml = '<td class="target">' + escHtml(r.aliasTargetName) + '</td>';
+    } else if (r.status === 'no_alias') {
+      badgeCls = 'noalias'; badgeLabel = 'Valore diretto';
+      targetHtml = '<td class="target dim">—</td>';
+    } else if (r.status === 'no_match') {
+      badgeCls = 'nomatch'; badgeLabel = 'No match';
+      targetHtml = '<td class="target dim">' + escHtml(r.aliasTargetName || '—') + '</td>';
+    } else if (r.status === 'already_local') {
+      badgeCls = 'lib'; badgeLabel = 'Già locale';
+      targetHtml = '<td class="target dim">—</td>';
+    } else if (r.status === 'unresolvable') {
+      badgeCls = 'nomatch'; badgeLabel = 'Irrisolvibile';
+      targetHtml = '<td class="target dim">—</td>';
+    } else {
+      badgeCls = 'lib'; badgeLabel = 'Già library';
+      targetHtml = '<td class="target dim">—</td>';
     }
-    tbody.innerHTML = html;
+    var chkHtml = isRemappable
+      ? '<td class="chk-cell"><input type="checkbox" checked style="cursor:pointer;accent-color:var(--accent)" onclick="toggleRow(event,\'' + r.localId + '\')"></td>'
+      : '<td class="chk-cell"></td>';
+    var rowClass = isRemappable ? 'selectable row-checked' : '';
+    html += '<tr class="' + rowClass + '" onclick="rowClick(event,\'' + r.localId + '\',this)">' +
+      chkHtml +
+      '<td class="mono">' + escHtml(r.localName) + '</td><td class="arrow">→</td>' +
+      targetHtml +
+      '<td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
   }
+  tbody.innerHTML = html;
+
+  syncHeaderCheckbox();
   if (s.noMatch > 0) { document.getElementById('notice2').style.display = 'block'; }
   updateNext();
+}
+
+function rowClick(event, id, tr) {
+  if (event.target.tagName === 'INPUT') { return; } // gestito da toggleRow
+  if (!tr.classList.contains('selectable')) { return; }
+  var chk = tr.querySelector('input[type=checkbox]');
+  if (!chk) { return; }
+  chk.checked = !chk.checked;
+  applyRowSelection(id, chk.checked, tr);
+}
+
+function toggleRow(event, id) {
+  event.stopPropagation();
+  var chk = event.target;
+  var tr = chk.closest('tr');
+  applyRowSelection(id, chk.checked, tr);
+}
+
+function applyRowSelection(id, checked, tr) {
+  if (checked) {
+    state.selectedRowIds[id] = true;
+    tr.classList.add('row-checked');
+  } else {
+    delete state.selectedRowIds[id];
+    tr.classList.remove('row-checked');
+  }
+  syncHeaderCheckbox();
+  updateNext();
+}
+
+function toggleAllRows(chk) {
+  var rows = state.previewRows;
+  state.selectedRowIds = {};
+  var trs = document.querySelectorAll('#previewBody tr.selectable');
+  for (var i = 0; i < trs.length; i++) {
+    var rowChk = trs[i].querySelector('input[type=checkbox]');
+    if (chk.checked) {
+      var id = rows[i] ? null : null; // ricaviamo l'id dal data attribute
+      if (rowChk) {
+        rowChk.checked = true;
+        trs[i].classList.add('row-checked');
+      }
+    } else {
+      if (rowChk) {
+        rowChk.checked = false;
+        trs[i].classList.remove('row-checked');
+      }
+    }
+  }
+  // ricostruiamo selectedRowIds dalle righe rimappabili
+  if (chk.checked) {
+    for (var j = 0; j < rows.length; j++) {
+      if (rows[j].canRemap) { state.selectedRowIds[rows[j].localId] = true; }
+    }
+  }
+  updateNext();
+}
+
+function syncHeaderCheckbox() {
+  var total = 0;
+  var selected = 0;
+  for (var j = 0; j < state.previewRows.length; j++) {
+    if (state.previewRows[j].canRemap) { total++; }
+  }
+  selected = Object.keys(state.selectedRowIds).length;
+  var chkAll = document.getElementById('chkAll');
+  if (!chkAll) { return; }
+  chkAll.checked = (total > 0 && selected === total);
+  chkAll.indeterminate = (selected > 0 && selected < total);
 }
 
 /* ── Execute ── */
 function doExecute() {
   setStep(3);
+  var selectedIds = Object.keys(state.selectedRowIds);
   if (state.mode === 'reverse') {
-    send('EXECUTE_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds });
+    send('EXECUTE_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds, selectedRowIds: selectedIds });
   } else {
-    send('EXECUTE_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys });
+    send('EXECUTE_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys, selectedRowIds: selectedIds });
   }
 }
 

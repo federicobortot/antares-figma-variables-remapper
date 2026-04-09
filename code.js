@@ -18,6 +18,13 @@ function createSafeMap() {
   return Object.create(null);
 }
 
+function buildIdSet(ids) {
+  var set = createSafeMap();
+  if (!ids) { return set; }
+  for (var i = 0; i < ids.length; i++) { set[ids[i]] = true; }
+  return set;
+}
+
 function getLocalVarsForCollections(collectionIds) {
   var allVars = figma.variables.getLocalVariables();
   var idSet = createSafeMap();
@@ -146,7 +153,7 @@ function handleLoadLibraryCollections() {
 }
 
 function handlePreviewRemap(payload) {
-  var localCollectionIds   = payload.localCollectionIds;
+  var localCollectionIds    = payload.localCollectionIds;
   var libraryCollectionKeys = payload.libraryCollectionKeys;  // ARRAY
 
   buildFoundationsMap(
@@ -186,6 +193,7 @@ function handlePreviewRemap(payload) {
 function handleExecuteRemap(payload) {
   var localCollectionIds    = payload.localCollectionIds;
   var libraryCollectionKeys = payload.libraryCollectionKeys;  // ARRAY
+  var selectedIdSet = buildIdSet(payload.selectedRowIds);
 
   buildFoundationsMap(
     libraryCollectionKeys,
@@ -208,7 +216,7 @@ function handleExecuteRemap(payload) {
       var tasks = [];
       var skipped = 0;
       for (var k = 0; k < analysis.length; k++) {
-        if (analysis[k].canRemap) { tasks.push(analysis[k]); }
+        if (analysis[k].canRemap && selectedIdSet[analysis[k].variable.id]) { tasks.push(analysis[k]); }
         else { skipped++; }
       }
 
@@ -380,6 +388,7 @@ function handlePreviewRemapReverse(payload) {
 
 function handleExecuteRemapReverse(payload) {
   var localCollectionIds = payload.localCollectionIds;
+  var selectedIdSet = buildIdSet(payload.selectedRowIds);
   var maps = buildTargetMaps(localCollectionIds);
 
   var collNameById = createSafeMap();
@@ -395,7 +404,7 @@ function handleExecuteRemapReverse(payload) {
 
   for (var r = 0; r < analysis.length; r++) {
     var item = analysis[r];
-    if (!item.canRemap) { skipped++; continue; }
+    if (!item.canRemap || !selectedIdSet[item.variable.id]) { skipped++; continue; }
     try {
       for (var m = 0; m < item.modeAnalysis.length; m++) {
         var ma = item.modeAnalysis[m];
