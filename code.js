@@ -293,11 +293,21 @@ function buildTargetMaps(localCollectionIds) {
   var targetVarIds = createSafeMap();
 
   for (var k = 0; k < allLocalVars.length; k++) {
-    var v = allLocalVars[k];
-    localVarById[v.id] = v;
-    if (!componentIdSet[v.variableCollectionId] && !v.remote) {
-      targetVarByName[v.name] = v;
-      targetVarIds[v.id] = true;
+    localVarById[allLocalVars[k].id] = allLocalVars[k];
+  }
+  // Primo passaggio: remote non-component (priorità bassa)
+  for (var i = 0; i < allLocalVars.length; i++) {
+    var vr = allLocalVars[i];
+    if (!componentIdSet[vr.variableCollectionId] && vr.remote) {
+      targetVarByName[vr.name] = vr;
+    }
+  }
+  // Secondo passaggio: non-remote non-component (sovrascrive, priorità alta)
+  for (var j = 0; j < allLocalVars.length; j++) {
+    var vl = allLocalVars[j];
+    if (!componentIdSet[vl.variableCollectionId] && !vl.remote) {
+      targetVarByName[vl.name] = vl;
+      targetVarIds[vl.id] = true;
     }
   }
   return { localVarById: localVarById, targetVarByName: targetVarByName, targetVarIds: targetVarIds };
