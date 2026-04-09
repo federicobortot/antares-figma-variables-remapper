@@ -121,6 +121,8 @@ figma.ui.onmessage = function(msg) {
   else if (msg.type === 'LOAD_LIBRARY_COLLECTIONS') { handleLoadLibraryCollections(); }
   else if (msg.type === 'PREVIEW_REMAP')         { handlePreviewRemap(msg.payload); }
   else if (msg.type === 'EXECUTE_REMAP')         { handleExecuteRemap(msg.payload); }
+  else if (msg.type === 'PREVIEW_REMAP_REVERSE') { handlePreviewRemapReverse(msg.payload); }
+  else if (msg.type === 'EXECUTE_REMAP_REVERSE') { handleExecuteRemapReverse(msg.payload); }
   else if (msg.type === 'CLOSE')                 { figma.closePlugin(); }
 };
 
@@ -276,4 +278,129 @@ function handleExecuteRemap(payload) {
     },
     function(err) { postToUI('ERROR', err); }
   );
+}
+
+// ---------------------------------------------------------------------------
+// Modalità inversa: Foundations → locale
+// ---------------------------------------------------------------------------
+function buildTargetMaps(localCollectionIds) {
+  var componentIdSet = createSafeMap();
+  for (var x = 0; x < localCollectionIds.length; x++) { componentIdSet[localCollectionIds[x]] = true; }
+
+  var allLocalVars = figma.variables.getLocalVariables();
+  var localVarById = createSafeMap();
+  var targetVarByName = createSafeMap();
+  var targetVarIds = createSafeMap();
+
+  for (var k = 0; k < allLocalVars.length; k++) {
+    var v = allLocalVars[k];
+    localVarById[v.id] = v;
+    if (!componentIdSet[v.variableCollectionId] && !v.remote) {
+      targetVarByName[v.name] = v;
+      targetVarIds[v.id] = true;
+    }
+  }
+  return { localVarById: localVarById, targetVarByName: targetVarByName, targetVarIds: targetVarIds };
+}
+
+function analyzeVarsReverse(componentVars, targetVarByName, targetVarIds, localVarById, collNameById) {
+  var results = [];
+  for (var i = 0; i < componentVars.length; i++) {
+    var variable = componentVars[i];
+    var modeAnalysis = [];
+    var canRemap = false;
+    var modeIds = Object.keys(variable.valuesByMode);
+    for (var m = 0; m < modeIds.length; m++) {
+      var modeId = modeIds[m];
+      var value = variable.valuesByMode[modeId];
+      if (value && value.type === 'VARIABLE_ALIAS') {
+        if (targetVarIds[value.id]) {
+          modeAnalysis.push({ modeId: modeId, aliasTargetName: null, localTargetId: null, status: 'already_local' });
+        } else {
+          var sourceVar = localVarById[value.id];
+          if (!sourceVar) {
+            modeAnalysis.push({ modeId: modeId, aliasTargetName: null, localTargetId: null, status: 'unresolvable' });
+          } else {
+            var localTarget = targetVarByName[sourceVar.name];
+            if (localTarget) {
+              canRemap = true;
+              modeAnalysis.push({ modeId: modeId, aliasTargetName: sourceVar.name, localTargetId: localTarget.id, status: 'remap' });
+            } else {
+              modeAnalysis.push({ modeId: modeId, aliasTargetName: sourceVar.name, localTargetId: null, status: 'no_match' });
+            }
+          }
+        }
+      } else {
+        modeAnalysis.push({ modeId: modeId, aliasTargetName: null, localTargetId: null, status: 'no_alias' });
+      }
+    }
+    results.push({ variable: variable, collectionName: collNameById[variable.variableCollectionId] || '?', modeAnalysis: modeAnalysis, canRemap: canRemap });
+  }
+  return results;
+}
+
+function handlePreviewRemapReverse(payload) {
+  var localCollectionIds = payload.localCollectionIds;
+  var maps = buildTargetMaps(localCollectionIds);
+
+  var collNameById = createSafeMap();
+  var allCollections = figma.variables.getLocalVariableCollections();
+  for (var ci = 0; ci < allCollections.length; ci++) { collNameById[allCollections[ci].id] = allCollections[ci].name; }
+
+  var componentVars = getLocalVarsForCollections(localCollectionIds);
+  var analysis = analyzeVarsReverse(componentVars, maps.targetVarByName, maps.targetVarIds, maps.localVarById, collNameById);
+
+  var rows = [];
+  var stats = { total: analysis.length, remap: 0, noMatch: 0, noAlias: 0, alreadyLib: 0 };
+
+  for (var r = 0; r < analysis.length; r++) {
+    var item = analysis[r];
+    var primaryStatus = item.modeAnalysis.length > 0 ? item.modeAnalysis[0].status : 'no_alias';
+    var targetName    = item.modeAnalysis.length > 0 ? item.modeAnalysis[0].aliasTargetName : null;
+    if      (primaryStatus === 'remap')         { stats.remap++; }
+    else if (primaryStatus === 'no_alias')      { stats.noAlias++; }
+    else if (primaryStatus === 'no_match')      { stats.noMatch++; }
+    else if (primaryStatus === 'already_local') { stats.alreadyLib++; }
+    else if (primaryStatus === 'unresolvable')  { stats.noMatch++; }
+    rows.push({ localId: item.variable.id, localName: item.variable.name, collectionName: item.collectionName, resolvedType: item.variable.resolvedType, status: primaryStatus, aliasTargetName: targetName, canRemap: item.canRemap });
+  }
+
+  postToUI('PREVIEW_RESULT', { rows: rows, stats: stats });
+}
+
+function handleExecuteRemapReverse(payload) {
+  var localCollectionIds = payload.localCollectionIds;
+  var maps = buildTargetMaps(localCollectionIds);
+
+  var collNameById = createSafeMap();
+  var allCollections = figma.variables.getLocalVariableCollections();
+  for (var ci = 0; ci < allCollections.length; ci++) { collNameById[allCollections[ci].id] = allCollections[ci].name; }
+
+  var componentVars = getLocalVarsForCollections(localCollectionIds);
+  var analysis = analyzeVarsReverse(componentVars, maps.targetVarByName, maps.targetVarIds, maps.localVarById, collNameById);
+
+  var remapped = 0;
+  var skipped = 0;
+  var errors = [];
+
+  for (var r = 0; r < analysis.length; r++) {
+    var item = analysis[r];
+    if (!item.canRemap) { skipped++; continue; }
+    try {
+      for (var m = 0; m < item.modeAnalysis.length; m++) {
+        var ma = item.modeAnalysis[m];
+        if (ma.status === 'remap' && ma.localTargetId) {
+          var targetVar = maps.localVarById[ma.localTargetId];
+          if (targetVar) {
+            item.variable.setValueForMode(ma.modeId, figma.variables.createVariableAlias(targetVar));
+          }
+        }
+      }
+      remapped++;
+    } catch(e) {
+      errors.push({ name: item.variable.name, error: String(e) });
+    }
+  }
+
+  postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length });
 }

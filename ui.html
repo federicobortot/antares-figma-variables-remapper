@@ -115,13 +115,21 @@ td.target.dim { color: var(--muted); font-style: italic; }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+.mode-toggle { display: flex; gap: 0; margin-top: 10px; background: var(--surface2); border-radius: var(--radius); padding: 3px; }
+.mode-btn { flex: 1; padding: 5px 8px; border: none; background: transparent; color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; border-radius: 6px; font-family: var(--font); transition: all 0.15s; }
+.mode-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Token Remapper → Foundations</h1>
-  <p>Segue la catena di alias dalle component token verso le token Foundations (semantic, primitive o altro), cercandole per nome in tutte le collezioni selezionate.</p>
+  <h1 id="headerTitle">Token Remapper → Foundations</h1>
+  <p id="headerDesc">Segue la catena di alias dalle component token verso le token Foundations (semantic, primitive o altro), cercandole per nome in tutte le collezioni selezionate.</p>
+  <div class="mode-toggle" style="margin-top:10px">
+    <button id="modeForward" class="mode-btn active" onclick="switchMode('forward')">Locale → Foundations</button>
+    <button id="modeReverse" class="mode-btn" onclick="switchMode('reverse')">Foundations → Locale</button>
+  </div>
 </div>
 
 <div class="steps">
@@ -142,13 +150,13 @@ td.target.dim { color: var(--muted); font-style: italic; }
     </div>
   </div>
 
-  <div>
+  <div id="libSection">
     <div class="label-row">
       <div class="label">Collezioni Foundations (libreria)</div>
       <button class="select-all-btn" id="selAllBtn" onclick="selectAllLibs()" style="display:none">Seleziona tutte</button>
     </div>
     <div id="libLoadArea">
-      <button class="btn" id="loadLibBtn" onclick="loadLibraries()">🔍 Carica librerie abilitate</button>
+      <button class="btn" id="loadLibBtn" onclick="loadLibraries()">&#128269; Carica librerie abilitate</button>
     </div>
     <div id="libList" style="margin-top:7px"></div>
     <div id="pillsArea" class="selected-pills" style="margin-top:7px"></div>
@@ -168,7 +176,7 @@ td.target.dim { color: var(--muted); font-style: italic; }
       <div class="stat"><div class="stat-n green" id="sRemap">–</div><div class="stat-l">Da rimappare</div></div>
       <div class="stat"><div class="stat-n red" id="sNoMatch">–</div><div class="stat-l">No match</div></div>
       <div class="stat"><div class="stat-n yellow" id="sNoAlias">–</div><div class="stat-l">Valore diretto</div></div>
-      <div class="stat"><div class="stat-n muted" id="sAlreadyLib">–</div><div class="stat-l">Già library</div></div>
+      <div class="stat"><div class="stat-n muted" id="sAlreadyLib">–</div><div class="stat-l" id="statLabelAlready">Già library</div></div>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -176,7 +184,7 @@ td.target.dim { color: var(--muted); font-style: italic; }
           <tr>
             <th>Component token</th>
             <th style="width:16px"></th>
-            <th>Semantic / Primitive target</th>
+            <th id="thTarget">Semantic / Primitive target</th>
             <th>Stato</th>
           </tr>
         </thead>
@@ -206,6 +214,7 @@ td.target.dim { color: var(--muted); font-style: italic; }
 <script>
 var state = {
   step: 1,
+  mode: 'forward',
   localCollections: [],
   selectedLocalIds: [],
   libraryCollections: [],
@@ -371,7 +380,11 @@ function removePill(key) {
 function updateNext() {
   var btn = document.getElementById('btnNext');
   if (state.step === 1) {
-    btn.disabled = (state.selectedLocalIds.length === 0 || state.selectedLibKeys.length === 0);
+    if (state.mode === 'reverse') {
+      btn.disabled = (state.selectedLocalIds.length === 0);
+    } else {
+      btn.disabled = (state.selectedLocalIds.length === 0 || state.selectedLibKeys.length === 0);
+    }
   } else if (state.step === 2) {
     btn.disabled = (!state.previewStats || state.previewStats.remap === 0);
   }
@@ -382,6 +395,36 @@ function goNext() {
   else if (state.step === 2) { doExecute(); }
 }
 function goBack() { if (state.step === 2) { setStep(1); } }
+
+function switchMode(mode) {
+  if (state.mode === mode) { return; }
+  state.mode = mode;
+  state.selectedLocalIds = [];
+  state.selectedLibKeys = [];
+  state.previewStats = null;
+
+  document.getElementById('modeForward').className = 'mode-btn' + (mode === 'forward' ? ' active' : '');
+  document.getElementById('modeReverse').className = 'mode-btn' + (mode === 'reverse' ? ' active' : '');
+  document.getElementById('headerTitle').textContent = mode === 'forward' ? 'Token Remapper → Foundations' : 'Token Remapper ← Locale';
+  document.getElementById('headerDesc').textContent = mode === 'forward'
+    ? 'Segue la catena di alias dalle component token verso le token Foundations, cercandole per nome.'
+    : 'Reindirizza gli alias dalle variabili Foundations alle token locali omonime.';
+  document.getElementById('libSection').style.display = mode === 'forward' ? '' : 'none';
+  var n1 = document.getElementById('notice1');
+  n1.className = 'notice';
+  n1.innerHTML = mode === 'forward'
+    ? '<strong>Seleziona tutte le collezioni Foundations</strong> che potrebbero contenere le token referenziate. Il file Foundations deve essere pubblicato e abilitato via Assets → Librerie → ✓.'
+    : '<strong>Seleziona le collezioni component</strong> da reindirizzare. Il plugin cerca per ogni alias una token locale (<em>non</em> library) con lo stesso nome identico.';
+  document.getElementById('statLabelAlready').textContent = mode === 'forward' ? 'Già library' : 'Già locale';
+  document.getElementById('thTarget').textContent = mode === 'forward' ? 'Semantic / Primitive target' : 'Token locale target';
+
+  var items = document.querySelectorAll('#localList .item');
+  for (var i = 0; i < items.length; i++) {
+    items[i].querySelector('input').checked = false;
+    items[i].classList.remove('sel-local');
+  }
+  setStep(1);
+}
 
 function setStep(n) {
   state.step = n;
@@ -411,11 +454,19 @@ function setStep(n) {
 
 /* ── Preview ── */
 function doPreview() {
+  var isReverse = state.mode === 'reverse';
+  var loadingMsg = isReverse
+    ? 'Analisi in corso…'
+    : 'Analisi in corso su ' + state.selectedLibKeys.length + ' collez. Foundations…';
   document.getElementById('previewBody').innerHTML =
-    '<tr><td colspan="4"><div class="loader" style="padding:6px 0"><div class="spin"></div>Analisi in corso su ' + state.selectedLibKeys.length + ' collez. Foundations…</div></td></tr>';
+    '<tr><td colspan="4"><div class="loader" style="padding:6px 0"><div class="spin"></div>' + loadingMsg + '</div></td></tr>';
   setStep(2);
   document.getElementById('btnNext').disabled = true;
-  send('PREVIEW_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys });
+  if (isReverse) {
+    send('PREVIEW_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds });
+  } else {
+    send('PREVIEW_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys });
+  }
 }
 
 function onPreviewResult(data) {
@@ -443,6 +494,12 @@ function onPreviewResult(data) {
       } else if (r.status === 'no_match') {
         badgeCls = 'nomatch'; badgeLabel = 'No match';
         targetHtml = '<td class="target dim">' + escHtml(r.aliasTargetName || '—') + '</td>';
+      } else if (r.status === 'already_local') {
+        badgeCls = 'lib'; badgeLabel = 'Già locale';
+        targetHtml = '<td class="target dim">—</td>';
+      } else if (r.status === 'unresolvable') {
+        badgeCls = 'nomatch'; badgeLabel = 'Irrisolvibile';
+        targetHtml = '<td class="target dim">—</td>';
       } else {
         badgeCls = 'lib'; badgeLabel = 'Già library';
         targetHtml = '<td class="target dim">—</td>';
@@ -458,7 +515,11 @@ function onPreviewResult(data) {
 /* ── Execute ── */
 function doExecute() {
   setStep(3);
-  send('EXECUTE_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys });
+  if (state.mode === 'reverse') {
+    send('EXECUTE_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds });
+  } else {
+    send('EXECUTE_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys });
+  }
 }
 
 function onExecuteResult(data) {
@@ -473,7 +534,8 @@ function onExecuteResult(data) {
     '<div class="result-icon">' + (hasErrors ? '⚠️' : '✅') + '</div>' +
     '<div class="result-title">' + (hasErrors ? 'Completato con avvisi' : 'Remapping completato!') + '</div>' +
     '<div class="result-sub">' +
-      '<span style="color:var(--green);font-weight:700">' + data.remapped + ' component token</span> ora puntano alle Foundations.<br>' +
+      '<span style="color:var(--green);font-weight:700">' + data.remapped + ' component token</span> ' +
+      (state.mode === 'reverse' ? 'ora puntano alle token locali.' : 'ora puntano alle Foundations.') + '<br>' +
       (data.skipped > 0 ? '<span style="color:var(--muted)">' + data.skipped + ' saltate</span> (no alias o no match).' : '') +
     '</div>' + errHtml;
 }
