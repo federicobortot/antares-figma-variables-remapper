@@ -208,10 +208,12 @@ tr.row-hidden { display: none; }
         <input type="text" id="searchInput" placeholder="Cerca token…" oninput="onSearchInput(this)">
         <span class="search-clear" id="searchClear" onclick="clearSearch()">&#x2715;</span>
       </div>
-      <div class="filter-row">
+      <div class="filter-row" style="flex-wrap:wrap">
         <span class="filter-label">Mostra:</span>
         <button class="filter-btn active" id="filterAll" onclick="setFilter('all')">Tutte</button>
-        <button class="filter-btn" id="filterNoMatch" onclick="setFilter('nomatch')">Solo no match</button>
+        <button class="filter-btn" id="filterNoMatch" onclick="setFilter('nomatch')">No match</button>
+        <button class="filter-btn" id="filterNoAlias" onclick="setFilter('noalias')">Valore diretto</button>
+        <button class="filter-btn" id="filterAlreadyLib" onclick="setFilter('alreadylib')">Già library</button>
       </div>
     </div>
     <div class="tbl-wrap">
@@ -608,11 +610,13 @@ function getGroupKey(name) {
 
 function getFilteredRows() {
   var q = state.searchQuery.toLowerCase();
-  var onlyNoMatch = (state.filterMode === 'nomatch');
+  var fm = state.filterMode;
   var result = [];
   for (var i = 0; i < state.previewRows.length; i++) {
     var r = state.previewRows[i];
-    if (onlyNoMatch && r.status !== 'no_match') { continue; }
+    if (fm === 'nomatch'    && r.status !== 'no_match') { continue; }
+    if (fm === 'noalias'    && r.status !== 'no_alias') { continue; }
+    if (fm === 'alreadylib' && r.status !== 'already_library' && r.status !== 'already_local') { continue; }
     if (q && r.localName.toLowerCase().indexOf(q) === -1 &&
         (!r.aliasTargetName || r.aliasTargetName.toLowerCase().indexOf(q) === -1)) { continue; }
     result.push(r);
@@ -639,8 +643,10 @@ function clearSearch() {
 
 function setFilter(mode, noRender) {
   state.filterMode = mode;
-  document.getElementById('filterAll').className     = 'filter-btn' + (mode === 'all'     ? ' active' : '');
-  document.getElementById('filterNoMatch').className = 'filter-btn' + (mode === 'nomatch' ? ' active' : '');
+  document.getElementById('filterAll').className        = 'filter-btn' + (mode === 'all'        ? ' active' : '');
+  document.getElementById('filterNoMatch').className    = 'filter-btn' + (mode === 'nomatch'    ? ' active' : '');
+  document.getElementById('filterNoAlias').className    = 'filter-btn' + (mode === 'noalias'    ? ' active' : '');
+  document.getElementById('filterAlreadyLib').className = 'filter-btn' + (mode === 'alreadylib' ? ' active' : '');
   if (noRender) { return; }
   state.openGroups = {};
   renderPreviewTable(getFilteredRows());
