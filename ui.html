@@ -125,6 +125,15 @@ tbody tr.row-checked:hover { background: rgba(233,69,96,0.11); }
 .mode-toggle { display: flex; gap: 0; margin-top: 10px; background: var(--surface2); border-radius: var(--radius); padding: 3px; }
 .mode-btn { flex: 1; padding: 5px 8px; border: none; background: transparent; color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; border-radius: 6px; font-family: var(--font); transition: all 0.15s; }
 .mode-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+tbody tr.group-row { background: var(--surface2); cursor: pointer; user-select: none; }
+tbody tr.group-row:hover { background: rgba(255,255,255,0.07); }
+td.group-td { padding: 0; }
+.group-cell { display: flex; align-items: center; gap: 8px; padding: 7px 10px; }
+.group-name { font-weight: 700; font-size: 11px; flex: 1; }
+.group-badge { font-size: 10px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 1px 7px; border-radius: 20px; }
+.chevron { display: inline-block; font-size: 8px; color: var(--muted); transition: transform 0.15s; line-height: 1; flex-shrink: 0; }
+.chevron.open { transform: rotate(90deg); }
+tr.row-hidden { display: none; }
 </style>
 </head>
 <body>
@@ -228,7 +237,9 @@ var state = {
   selectedLibKeys: [],      // ARRAY — multi-selezione
   previewStats: null,
   previewRows: [],          // tutte le righe rimappabili
-  selectedRowIds: {}        // id -> true per le righe spuntate
+  selectedRowIds: {},       // id -> true per le righe spuntate
+  openGroups: {},           // groupKey -> false = chiuso (assente = aperto)
+  groupKeys: []             // ordered list of group keys
 };
 
 window.onmessage = function(event) {
@@ -483,6 +494,7 @@ function onPreviewResult(data) {
   state.previewStats = data.stats;
   state.previewRows = data.rows;
   state.selectedRowIds = {};
+  state.openGroups = {};
 
   var s = data.stats;
   document.getElementById('sRemap').textContent      = s.remap;
@@ -490,47 +502,11 @@ function onPreviewResult(data) {
   document.getElementById('sNoAlias').textContent    = s.noAlias;
   document.getElementById('sAlreadyLib').textContent = s.alreadyLib;
 
-  var rows = data.rows;
-  var tbody = document.getElementById('previewBody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">Nessuna variabile trovata.</td></tr>'; updateNext(); return; }
-
-  var html = '';
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
-    var badgeCls, badgeLabel, targetHtml;
-    var isRemappable = r.canRemap;
-    if (isRemappable) { state.selectedRowIds[r.localId] = true; }
-    if (r.status === 'remap') {
-      badgeCls = 'remap'; badgeLabel = '✓ Rimappa';
-      targetHtml = '<td class="target">' + escHtml(r.aliasTargetName) + '</td>';
-    } else if (r.status === 'no_alias') {
-      badgeCls = 'noalias'; badgeLabel = 'Valore diretto';
-      targetHtml = '<td class="target dim">—</td>';
-    } else if (r.status === 'no_match') {
-      badgeCls = 'nomatch'; badgeLabel = 'No match';
-      targetHtml = '<td class="target dim">' + escHtml(r.aliasTargetName || '—') + '</td>';
-    } else if (r.status === 'already_local') {
-      badgeCls = 'lib'; badgeLabel = 'Già locale';
-      targetHtml = '<td class="target dim">—</td>';
-    } else if (r.status === 'unresolvable') {
-      badgeCls = 'nomatch'; badgeLabel = 'Irrisolvibile';
-      targetHtml = '<td class="target dim">—</td>';
-    } else {
-      badgeCls = 'lib'; badgeLabel = 'Già library';
-      targetHtml = '<td class="target dim">—</td>';
-    }
-    var chkHtml = isRemappable
-      ? '<td class="chk-cell"><input type="checkbox" checked style="cursor:pointer;accent-color:var(--accent)" onclick="toggleRow(event,\'' + r.localId + '\')"></td>'
-      : '<td class="chk-cell"></td>';
-    var rowClass = isRemappable ? 'selectable row-checked' : '';
-    html += '<tr class="' + rowClass + '" onclick="rowClick(event,\'' + r.localId + '\',this)">' +
-      chkHtml +
-      '<td class="mono">' + escHtml(r.localName) + '</td><td class="arrow">→</td>' +
-      targetHtml +
-      '<td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
+  for (var p = 0; p < data.rows.length; p++) {
+    if (data.rows[p].canRemap) { state.selectedRowIds[data.rows[p].localId] = true; }
   }
-  tbody.innerHTML = html;
 
+  renderPreviewTable(data.rows);
   syncHeaderCheckbox();
   if (s.noMatch > 0) { document.getElementById('notice2').style.display = 'block'; }
   updateNext();
@@ -553,6 +529,7 @@ function toggleRow(event, id) {
 }
 
 function applyRowSelection(id, checked, tr) {
+  var gKey = tr.getAttribute('data-group');
   if (checked) {
     state.selectedRowIds[id] = true;
     tr.classList.add('row-checked');
@@ -560,35 +537,26 @@ function applyRowSelection(id, checked, tr) {
     delete state.selectedRowIds[id];
     tr.classList.remove('row-checked');
   }
+  if (gKey) { syncGroupCheckbox(gKey); }
   syncHeaderCheckbox();
   updateNext();
 }
 
 function toggleAllRows(chk) {
-  var rows = state.previewRows;
   state.selectedRowIds = {};
-  var trs = document.querySelectorAll('#previewBody tr.selectable');
-  for (var i = 0; i < trs.length; i++) {
-    var rowChk = trs[i].querySelector('input[type=checkbox]');
-    if (chk.checked) {
-      var id = rows[i] ? null : null; // ricaviamo l'id dal data attribute
-      if (rowChk) {
-        rowChk.checked = true;
-        trs[i].classList.add('row-checked');
-      }
-    } else {
-      if (rowChk) {
-        rowChk.checked = false;
-        trs[i].classList.remove('row-checked');
-      }
-    }
-  }
-  // ricostruiamo selectedRowIds dalle righe rimappabili
   if (chk.checked) {
-    for (var j = 0; j < rows.length; j++) {
-      if (rows[j].canRemap) { state.selectedRowIds[rows[j].localId] = true; }
+    for (var j = 0; j < state.previewRows.length; j++) {
+      if (state.previewRows[j].canRemap) { state.selectedRowIds[state.previewRows[j].localId] = true; }
     }
   }
+  var allTokenRows = document.querySelectorAll('#previewBody tr.token-row');
+  for (var i = 0; i < allTokenRows.length; i++) {
+    var rowChk = allTokenRows[i].querySelector('input[type=checkbox]');
+    if (rowChk) { rowChk.checked = !!chk.checked; }
+    if (chk.checked) { allTokenRows[i].classList.add('row-checked'); }
+    else { allTokenRows[i].classList.remove('row-checked'); }
+  }
+  for (var k = 0; k < state.groupKeys.length; k++) { syncGroupCheckbox(state.groupKeys[k]); }
   updateNext();
 }
 
@@ -603,6 +571,147 @@ function syncHeaderCheckbox() {
   if (!chkAll) { return; }
   chkAll.checked = (total > 0 && selected === total);
   chkAll.indeterminate = (selected > 0 && selected < total);
+}
+
+function getGroupKey(name) {
+  var slash = name.indexOf('/');
+  return slash !== -1 ? name.substring(0, slash) : '(altro)';
+}
+
+function gKeyToSafeId(gKey) {
+  return 'gchk_' + gKey.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function renderPreviewTable(rows) {
+  var tbody = document.getElementById('previewBody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Nessuna variabile trovata.</td></tr>';
+    state.groupKeys = [];
+    return;
+  }
+  var groups = Object.create(null);
+  var groupOrder = [];
+  for (var i = 0; i < rows.length; i++) {
+    var gKey = getGroupKey(rows[i].localName);
+    if (!groups[gKey]) { groups[gKey] = []; groupOrder.push(gKey); }
+    groups[gKey].push(rows[i]);
+  }
+  state.groupKeys = groupOrder;
+
+  var html = '';
+  for (var g = 0; g < groupOrder.length; g++) {
+    var gKey = groupOrder[g];
+    var gRows = groups[gKey];
+    var remappable = 0;
+    for (var k = 0; k < gRows.length; k++) { if (gRows[k].canRemap) { remappable++; } }
+    var safeId = gKeyToSafeId(gKey);
+    var gKeyAttr = escHtml(gKey);
+    var gKeyJs  = gKey.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var badgeText = gRows.length + ' token' + (remappable < gRows.length ? ' &middot; ' + remappable + ' rimapp.' : '');
+    var gChkHtml = remappable > 0
+      ? '<input type="checkbox" id="' + safeId + '" checked style="cursor:pointer;accent-color:var(--accent)" onclick="toggleGroupCheckbox(event,\'' + gKeyJs + '\')"  >'
+      : '';
+    html += '<tr class="group-row" data-group="' + gKeyAttr + '" onclick="toggleAccordion(\'' + gKeyJs + '\')">' +
+      '<td class="chk-cell">' + gChkHtml + '</td>' +
+      '<td colspan="4" class="group-td"><div class="group-cell">' +
+        '<span class="chevron open">&#9654;</span>' +
+        '<span class="group-name">' + gKeyAttr + '</span>' +
+        '<span class="group-badge">' + badgeText + '</span>' +
+      '</div></td></tr>';
+    for (var j = 0; j < gRows.length; j++) {
+      var r = gRows[j];
+      var badgeCls, badgeLabel, targetHtml;
+      if (r.status === 'remap') {
+        badgeCls = 'remap'; badgeLabel = '✓ Rimappa';
+        targetHtml = '<td class="target">' + escHtml(r.aliasTargetName) + '</td>';
+      } else if (r.status === 'no_alias') {
+        badgeCls = 'noalias'; badgeLabel = 'Valore diretto';
+        targetHtml = '<td class="target dim">—</td>';
+      } else if (r.status === 'no_match') {
+        badgeCls = 'nomatch'; badgeLabel = 'No match';
+        targetHtml = '<td class="target dim">' + escHtml(r.aliasTargetName || '—') + '</td>';
+      } else if (r.status === 'already_local') {
+        badgeCls = 'lib'; badgeLabel = 'Già locale';
+        targetHtml = '<td class="target dim">—</td>';
+      } else if (r.status === 'unresolvable') {
+        badgeCls = 'nomatch'; badgeLabel = 'Irrisolvibile';
+        targetHtml = '<td class="target dim">—</td>';
+      } else {
+        badgeCls = 'lib'; badgeLabel = 'Già library';
+        targetHtml = '<td class="target dim">—</td>';
+      }
+      var rIdJs = r.localId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      var rowCheckedCls = (r.canRemap && state.selectedRowIds[r.localId]) ? ' row-checked' : '';
+      var chkHtml = r.canRemap
+        ? '<td class="chk-cell"><input type="checkbox"' + (state.selectedRowIds[r.localId] ? ' checked' : '') + ' style="cursor:pointer;accent-color:var(--accent)" onclick="toggleRow(event,\'' + rIdJs + '\')"  ></td>'
+        : '<td class="chk-cell"></td>';
+      var rowCls = 'token-row' + (r.canRemap ? ' selectable' + rowCheckedCls : '');
+      html += '<tr class="' + rowCls + '" data-group="' + gKeyAttr + '" onclick="rowClick(event,\'' + rIdJs + '\',this)">' +
+        chkHtml +
+        '<td class="mono">' + escHtml(r.localName) + '</td><td class="arrow">→</td>' +
+        targetHtml +
+        '<td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
+    }
+  }
+  tbody.innerHTML = html;
+  for (var gi = 0; gi < groupOrder.length; gi++) { syncGroupCheckbox(groupOrder[gi]); }
+}
+
+function toggleAccordion(gKey) {
+  var isOpen = (state.openGroups[gKey] !== false);
+  state.openGroups[gKey] = !isOpen;
+  var nowOpen = !isOpen;
+  var allRows = document.querySelectorAll('#previewBody tr');
+  for (var i = 0; i < allRows.length; i++) {
+    if (allRows[i].getAttribute('data-group') !== gKey) { continue; }
+    if (allRows[i].classList.contains('group-row')) {
+      var chev = allRows[i].querySelector('.chevron');
+      if (chev) { chev.className = nowOpen ? 'chevron open' : 'chevron'; }
+    } else {
+      if (nowOpen) { allRows[i].classList.remove('row-hidden'); }
+      else { allRows[i].classList.add('row-hidden'); }
+    }
+  }
+}
+
+function toggleGroupCheckbox(event, gKey) {
+  event.stopPropagation();
+  var shouldSelect = event.target.checked;
+  var allTokenRows = document.querySelectorAll('#previewBody tr.token-row');
+  for (var i = 0; i < allTokenRows.length; i++) {
+    if (allTokenRows[i].getAttribute('data-group') !== gKey) { continue; }
+    var rowChk = allTokenRows[i].querySelector('input[type=checkbox]');
+    if (!rowChk) { continue; }
+    rowChk.checked = shouldSelect;
+    if (shouldSelect) { allTokenRows[i].classList.add('row-checked'); }
+    else { allTokenRows[i].classList.remove('row-checked'); }
+  }
+  for (var j = 0; j < state.previewRows.length; j++) {
+    var r = state.previewRows[j];
+    if (getGroupKey(r.localName) === gKey && r.canRemap) {
+      if (shouldSelect) { state.selectedRowIds[r.localId] = true; }
+      else { delete state.selectedRowIds[r.localId]; }
+    }
+  }
+  event.target.indeterminate = false;
+  syncHeaderCheckbox();
+  updateNext();
+}
+
+function syncGroupCheckbox(gKey) {
+  var total = 0; var selected = 0;
+  for (var i = 0; i < state.previewRows.length; i++) {
+    var r = state.previewRows[i];
+    if (getGroupKey(r.localName) === gKey && r.canRemap) {
+      total++;
+      if (state.selectedRowIds[r.localId]) { selected++; }
+    }
+  }
+  var chk = document.getElementById(gKeyToSafeId(gKey));
+  if (!chk) { return; }
+  chk.indeterminate = false;
+  chk.checked = (total > 0 && selected === total);
+  if (selected > 0 && selected < total) { chk.indeterminate = true; }
 }
 
 /* ── Execute ── */
