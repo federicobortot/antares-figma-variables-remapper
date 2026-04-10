@@ -802,6 +802,17 @@ function onExecuteResult(data) {
     for (var i = 0; i < data.errors.length; i++) { lines += '• ' + data.errors[i].name + ': ' + data.errors[i].error + '\n'; }
     errHtml = '<div class="err-log">' + escHtml(lines) + '</div>';
   }
+  var logHtml = '';
+  if (data.log && data.log.length > 0) {
+    var logLines = data.log.join('\n');
+    logHtml = '<div style="margin-top:12px;text-align:left">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">' +
+        '<span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Log dettagliato (' + data.log.length + ' voci)</span>' +
+        '<button onclick="copyLog()" style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:3px 9px;cursor:pointer;font-family:var(--font);font-weight:600" id="copyLogBtn">Copia</button>' +
+      '</div>' +
+      '<div class="err-log" id="logContent" style="color:var(--muted);max-height:180px">' + escHtml(logLines) + '</div>' +
+    '</div>';
+  }
   document.getElementById('resultBox').innerHTML =
     '<div class="result-icon">' + (hasErrors ? '⚠️' : '✅') + '</div>' +
     '<div class="result-title">' + (hasErrors ? 'Completato con avvisi' : 'Remapping completato!') + '</div>' +
@@ -809,7 +820,28 @@ function onExecuteResult(data) {
       '<span style="color:var(--green);font-weight:700">' + data.remapped + ' component token</span> ' +
       (state.mode === 'reverse' ? 'ora puntano alle token locali.' : 'ora puntano alle Foundations.') + '<br>' +
       (data.skipped > 0 ? '<span style="color:var(--muted)">' + data.skipped + ' saltate</span> (no alias o no match).' : '') +
-    '</div>' + errHtml;
+    '</div>' + errHtml + logHtml;
+}
+
+function copyLog() {
+  var el = document.getElementById('logContent');
+  if (!el) { return; }
+  var btn = document.getElementById('copyLogBtn');
+  try {
+    navigator.clipboard.writeText(el.textContent).then(function() {
+      btn.textContent = 'Copiato!';
+      setTimeout(function() { btn.textContent = 'Copia'; }, 1500);
+    });
+  } catch(e) {
+    var ta = document.createElement('textarea');
+    ta.value = el.textContent;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'Copiato!';
+    setTimeout(function() { btn.textContent = 'Copia'; }, 1500);
+  }
 }
 
 function onError(msg) {

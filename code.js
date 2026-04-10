@@ -223,10 +223,11 @@ function handleExecuteRemap(payload) {
       var remapped = 0;
       var errors = [];
       var keyCache = createSafeMap();
+      var log = [];
 
       function processNext(index) {
         if (index >= tasks.length) {
-          postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length });
+          postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length, log: log });
           return;
         }
 
@@ -247,11 +248,19 @@ function handleExecuteRemap(payload) {
               for (var m2 = 0; m2 < item.modeAnalysis.length; m2++) {
                 var ma2 = item.modeAnalysis[m2];
                 if (ma2.status === 'remap' && ma2.foundationsKey && fetchedVars[ma2.foundationsKey]) {
+                  var prevValue = item.variable.valuesByMode[ma2.modeId];
+                  var prevStr = prevValue && typeof prevValue === 'object' && prevValue.type === 'VARIABLE_ALIAS'
+                    ? 'ALIAS:' + (localVarById[prevValue.id] ? localVarById[prevValue.id].name : prevValue.id)
+                    : JSON.stringify(prevValue);
                   item.variable.setValueForMode(ma2.modeId, figma.variables.createVariableAlias(fetchedVars[ma2.foundationsKey]));
+                  log.push('[OK] ' + item.variable.name + ' | mode:' + ma2.modeId + ' | ' + prevStr + ' → ALIAS:' + fetchedVars[ma2.foundationsKey].name);
+                } else if (ma2.status === 'remap' && ma2.foundationsKey && !fetchedVars[ma2.foundationsKey]) {
+                  log.push('[SKIP-NOIMPORT] ' + item.variable.name + ' | mode:' + ma2.modeId + ' | key:' + ma2.foundationsKey);
                 }
               }
               remapped++;
             } catch(e) {
+              log.push('[ERR] ' + item.variable.name + ' | ' + String(e));
               errors.push({ name: item.variable.name, error: String(e) });
             }
             processNext(index + 1);
@@ -274,6 +283,7 @@ function handleExecuteRemap(payload) {
               fetchNextKey();
             })
             .catch(function(err) {
+              log.push('[ERR-IMPORT] key:' + key + ' | ' + String(err));
               errors.push({ name: item.variable.name, error: String(err) });
               fetchNextKey();
             });
@@ -401,25 +411,34 @@ function handleExecuteRemapReverse(payload) {
   var remapped = 0;
   var skipped = 0;
   var errors = [];
+  var log = [];
 
   for (var r = 0; r < analysis.length; r++) {
     var item = analysis[r];
-    if (!item.canRemap || !selectedIdSet[item.variable.id]) { skipped++; continue; }
+    if (!item.canRemap || !selectedIdSet[item.variable.id]) { skipped++; log.push('[SKIP] ' + item.variable.name + ' | canRemap:' + item.canRemap + ' | selected:' + !!selectedIdSet[item.variable.id]); continue; }
     try {
       for (var m = 0; m < item.modeAnalysis.length; m++) {
         var ma = item.modeAnalysis[m];
         if (ma.status === 'remap' && ma.localTargetId) {
           var targetVar = maps.localVarById[ma.localTargetId];
           if (targetVar) {
+            var prevValue = item.variable.valuesByMode[ma.modeId];
+            var prevStr = prevValue && typeof prevValue === 'object' && prevValue.type === 'VARIABLE_ALIAS'
+              ? 'ALIAS:' + (maps.localVarById[prevValue.id] ? maps.localVarById[prevValue.id].name : prevValue.id)
+              : JSON.stringify(prevValue);
             item.variable.setValueForMode(ma.modeId, figma.variables.createVariableAlias(targetVar));
+            log.push('[OK] ' + item.variable.name + ' | mode:' + ma.modeId + ' | ' + prevStr + ' → ALIAS:' + targetVar.name);
+          } else {
+            log.push('[SKIP-NOVAR] ' + item.variable.name + ' | mode:' + ma.modeId + ' | targetId:' + ma.localTargetId);
           }
         }
       }
       remapped++;
     } catch(e) {
+      log.push('[ERR] ' + item.variable.name + ' | ' + String(e));
       errors.push({ name: item.variable.name, error: String(e) });
     }
   }
 
-  postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length });
+  postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length, log: log });
 }
