@@ -86,6 +86,83 @@ function buildFoundationsMap(libraryCollectionKeys, cb, cbErr) {
 }
 
 // ---------------------------------------------------------------------------
+// Execute stili di testo modalità reverse (sincrono)
+// ---------------------------------------------------------------------------
+function executeTextStylesReverse(selectedStyleIds, maps, remapped, skipped, errors, log) {
+  var selectedIdSet = buildIdSet(selectedStyleIds);
+  var styles = figma.getLocalTextStyles();
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    if (!selectedIdSet[style.id]) { continue; }
+    var didRemap = false;
+    try {
+      for (var f = 0; f < TEXT_STYLE_FIELDS.length; f++) {
+        var field = TEXT_STYLE_FIELDS[f];
+        var binding = style.boundVariables[field];
+        if (!binding) { continue; }
+        var sourceVar = maps.localVarById[binding.id] || figma.variables.getVariableById(binding.id);
+        if (!sourceVar) { continue; }
+        var localTarget = maps.targetVarByName[sourceVar.name];
+        if (localTarget) {
+          style.setBoundVariable(field, localTarget);
+          log.push('[OK-STYLE] ' + style.name + ' | ' + field + ' | ' + sourceVar.name + ' → ' + localTarget.name);
+          didRemap = true;
+        }
+      }
+      if (didRemap) { remapped++; } else { skipped++; }
+    } catch(e) {
+      log.push('[ERR-STYLE] ' + style.name + ' | ' + String(e));
+      errors.push({ name: style.name, error: String(e) });
+    }
+  }
+  postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, log: log });
+}
+var TEXT_STYLE_FIELDS = ['fontSize', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'paragraphIndent'];
+
+function analyzeTextStyles(foundationsMapByName, localVarById) {
+  var styles = figma.getLocalTextStyles();
+  var results = [];
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    var remappableFields = [];
+    var allBound = 0;
+    var alreadyLibCount = 0;
+    for (var f = 0; f < TEXT_STYLE_FIELDS.length; f++) {
+      var field = TEXT_STYLE_FIELDS[f];
+      var binding = style.boundVariables[field];
+      if (!binding) { continue; }
+      allBound++;
+      var targetVar = localVarById[binding.id];
+      if (!targetVar) {
+        alreadyLibCount++;
+      } else {
+        var foundKey = foundationsMapByName[targetVar.name];
+        if (foundKey) {
+          remappableFields.push({ field: field, aliasTargetName: targetVar.name, foundationsKey: foundKey });
+        }
+      }
+    }
+    if (allBound === 0) { continue; }
+    var canRemap = remappableFields.length > 0;
+    var primaryStatus;
+    if (canRemap) { primaryStatus = 'remap'; }
+    else if (alreadyLibCount === allBound) { primaryStatus = 'already_library'; }
+    else { primaryStatus = 'no_match'; }
+    var fieldNames = [];
+    for (var r = 0; r < remappableFields.length; r++) { fieldNames.push(remappableFields[r].field); }
+    results.push({
+      styleId: style.id,
+      styleName: style.name,
+      canRemap: canRemap,
+      primaryStatus: primaryStatus,
+      remappableCount: remappableFields.length,
+      fieldSummary: fieldNames.join(', ')
+    });
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Analisi alias chain (invariata da v4)
 // ---------------------------------------------------------------------------
 function analyzeVars(componentVars, foundationsMapByName, localVarById, collNameById) {
@@ -135,6 +212,19 @@ figma.ui.onmessage = function(msg) {
 
 function handleInit() {
   postToUI('LOCAL_COLLECTIONS', getLocalCollectionsSummary());
+  postToUI('TEXT_STYLE_COUNT', { count: figma.getLocalTextStyles().length });
+  figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()
+    .then(function(libCollections) {
+      var mapped = [];
+      for (var i = 0; i < libCollections.length; i++) {
+        var c = libCollections[i];
+        mapped.push({ key: c.key, name: c.name, libraryName: c.libraryName });
+      }
+      postToUI('LIBRARY_COLLECTIONS', mapped);
+    })
+    .catch(function(err) {
+      postToUI('LIBRARY_COLLECTIONS_ERROR', 'Impossibile caricare le librerie. (' + String(err) + ')');
+    });
 }
 
 function handleLoadLibraryCollections() {
@@ -184,7 +274,9 @@ function handlePreviewRemap(payload) {
         rows.push({ localId: item.variable.id, localName: item.variable.name, collectionName: item.collectionName, resolvedType: item.variable.resolvedType, status: primaryStatus, aliasTargetName: targetName, canRemap: item.canRemap });
       }
 
-      postToUI('PREVIEW_RESULT', { rows: rows, stats: stats });
+      var textStyles = null;
+      if (payload.includeTextStyles) { textStyles = analyzeTextStyles(foundationsMapByName, localVarById); }
+      postToUI('PREVIEW_RESULT', { rows: rows, stats: stats, textStyles: textStyles });
     },
     function(err) { postToUI('ERROR', err); }
   );
@@ -227,7 +319,12 @@ function handleExecuteRemap(payload) {
 
       function processNext(index) {
         if (index >= tasks.length) {
-          postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length, log: log });
+          // ── stili di testo ──
+          if (payload.selectedStyleIds && payload.selectedStyleIds.length > 0) {
+            executeTextStyles(payload.selectedStyleIds, foundationsMapByName, localVarById, keyCache, remapped, skipped, errors, log);
+          } else {
+            postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length, log: log });
+          }
           return;
         }
 
@@ -298,9 +395,135 @@ function handleExecuteRemap(payload) {
   );
 }
 
+function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById, keyCache, remapped, skipped, errors, log) {
+  var selectedIdSet = buildIdSet(selectedStyleIds);
+  var styles = figma.getLocalTextStyles();
+  var tasks = [];
+  for (var i = 0; i < styles.length; i++) {
+    if (!selectedIdSet[styles[i].id]) { continue; }
+    var style = styles[i];
+    var fieldsToRemap = [];
+    for (var f = 0; f < TEXT_STYLE_FIELDS.length; f++) {
+      var field = TEXT_STYLE_FIELDS[f];
+      var binding = style.boundVariables[field];
+      if (!binding) { continue; }
+      var targetVar = localVarById[binding.id];
+      if (!targetVar) { continue; }
+      var foundKey = foundationsMapByName[targetVar.name];
+      if (foundKey) { fieldsToRemap.push({ field: field, foundationsKey: foundKey, prevName: targetVar.name }); }
+    }
+    if (fieldsToRemap.length > 0) { tasks.push({ style: style, fields: fieldsToRemap }); }
+    else { skipped++; }
+  }
+
+  var taskIndex = 0;
+
+  function processStyleNext() {
+    if (taskIndex >= tasks.length) {
+      postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, log: log });
+      return;
+    }
+    var task = tasks[taskIndex];
+    taskIndex++;
+
+    // collect unique keys for this style
+    var uniqueKeys = createSafeMap();
+    for (var f = 0; f < task.fields.length; f++) { uniqueKeys[task.fields[f].foundationsKey] = true; }
+    var keysToFetch = Object.keys(uniqueKeys);
+    var fetchedVars = createSafeMap();
+    var fetchIndex = 0;
+
+    function fetchNextKey() {
+      if (fetchIndex >= keysToFetch.length) {
+        try {
+          for (var f2 = 0; f2 < task.fields.length; f2++) {
+            var fd = task.fields[f2];
+            var importedVar = fetchedVars[fd.foundationsKey];
+            if (importedVar) {
+              task.style.setBoundVariable(fd.field, importedVar);
+              log.push('[OK-STYLE] ' + task.style.name + ' | ' + fd.field + ' | ' + fd.prevName + ' → ' + importedVar.name);
+            } else {
+              log.push('[SKIP-STYLE-NOIMPORT] ' + task.style.name + ' | ' + fd.field + ' | key:' + fd.foundationsKey);
+            }
+          }
+          remapped++;
+        } catch(e) {
+          log.push('[ERR-STYLE] ' + task.style.name + ' | ' + String(e));
+          errors.push({ name: task.style.name, error: String(e) });
+        }
+        processStyleNext();
+        return;
+      }
+      var key = keysToFetch[fetchIndex];
+      fetchIndex++;
+      if (keyCache[key]) {
+        fetchedVars[key] = keyCache[key];
+        fetchNextKey();
+        return;
+      }
+      figma.variables.importVariableByKeyAsync(key)
+        .then(function(importedVar) {
+          keyCache[key] = importedVar;
+          fetchedVars[key] = importedVar;
+          fetchNextKey();
+        })
+        .catch(function(err) {
+          log.push('[ERR-IMPORT-STYLE] key:' + key + ' | ' + String(err));
+          errors.push({ name: task.style.name, error: String(err) });
+          fetchNextKey();
+        });
+    }
+    fetchNextKey();
+  }
+  processStyleNext();
+}
+
 // ---------------------------------------------------------------------------
 // Modalità inversa: Foundations → locale
 // ---------------------------------------------------------------------------
+function analyzeTextStylesReverse(targetVarByName, localVarById) {
+  var styles = figma.getLocalTextStyles();
+  var results = [];
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    var remappableFields = [];
+    var allBound = 0;
+    var alreadyLocalCount = 0;
+    for (var f = 0; f < TEXT_STYLE_FIELDS.length; f++) {
+      var field = TEXT_STYLE_FIELDS[f];
+      var binding = style.boundVariables[field];
+      if (!binding) { continue; }
+      allBound++;
+      var sourceVar = localVarById[binding.id] || figma.variables.getVariableById(binding.id);
+      if (!sourceVar) { continue; }
+      var localTarget = targetVarByName[sourceVar.name];
+      if (localTarget) {
+        remappableFields.push({ field: field, aliasTargetName: sourceVar.name, localTargetId: localTarget.id });
+      } else if (localVarById[binding.id]) {
+        // il binding punta già a una variabile locale
+        alreadyLocalCount++;
+      }
+    }
+    if (allBound === 0) { continue; }
+    var canRemap = remappableFields.length > 0;
+    var primaryStatus;
+    if (canRemap) { primaryStatus = 'remap'; }
+    else if (alreadyLocalCount === allBound) { primaryStatus = 'already_local'; }
+    else { primaryStatus = 'no_match'; }
+    var fieldNames = [];
+    for (var r = 0; r < remappableFields.length; r++) { fieldNames.push(remappableFields[r].field); }
+    results.push({
+      styleId: style.id,
+      styleName: style.name,
+      canRemap: canRemap,
+      primaryStatus: primaryStatus,
+      remappableCount: remappableFields.length,
+      fieldSummary: fieldNames.join(', ')
+    });
+  }
+  return results;
+}
+
 function buildTargetMaps(localCollectionIds) {
   var componentIdSet = createSafeMap();
   for (var x = 0; x < localCollectionIds.length; x++) { componentIdSet[localCollectionIds[x]] = true; }
@@ -393,7 +616,9 @@ function handlePreviewRemapReverse(payload) {
     rows.push({ localId: item.variable.id, localName: item.variable.name, collectionName: item.collectionName, resolvedType: item.variable.resolvedType, status: primaryStatus, aliasTargetName: targetName, canRemap: item.canRemap });
   }
 
-  postToUI('PREVIEW_RESULT', { rows: rows, stats: stats });
+  var textStyles = null;
+  if (payload.includeTextStyles) { textStyles = analyzeTextStylesReverse(maps.targetVarByName, maps.localVarById); }
+  postToUI('PREVIEW_RESULT', { rows: rows, stats: stats, textStyles: textStyles });
 }
 
 function handleExecuteRemapReverse(payload) {
@@ -440,5 +665,9 @@ function handleExecuteRemapReverse(payload) {
     }
   }
 
-  postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length, log: log });
+  if (payload.selectedStyleIds && payload.selectedStyleIds.length > 0) {
+    executeTextStylesReverse(payload.selectedStyleIds, maps, remapped, skipped, errors, log);
+  } else {
+    postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length, log: log });
+  }
 }

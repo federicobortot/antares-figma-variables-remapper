@@ -38,7 +38,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .select-all-btn:hover { color: #c084fc; }
 
 /* Items — shared style for both local and library */
-.item-list { display: flex; flex-direction: column; gap: 4px; max-height: 175px; overflow-y: auto; }
+.item-list { display: flex; flex-direction: column; gap: 4px; }
 .item { display: flex; align-items: center; gap: 9px; padding: 8px 11px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: border-color 0.12s; user-select: none; }
 .item:hover { border-color: rgba(255,255,255,0.15); }
 .item input { width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; pointer-events: none; }
@@ -125,6 +125,9 @@ tbody tr.row-checked:hover { background: rgba(233,69,96,0.11); }
 .mode-toggle { display: flex; gap: 0; margin-top: 10px; background: var(--surface2); border-radius: var(--radius); padding: 3px; }
 .mode-btn { flex: 1; padding: 5px 8px; border: none; background: transparent; color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; border-radius: 6px; font-family: var(--font); transition: all 0.15s; }
 .mode-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+.col-left  { flex: 0 0 48%; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; }
+.col-right { flex: 1;      display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; }
+.col-divider { width: 1px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
 .search-bar { display: flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 0 10px; }
 .search-bar input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 11px; font-family: var(--font); padding: 7px 0; }
 .search-bar input::placeholder { color: var(--muted); }
@@ -167,29 +170,57 @@ tr.row-hidden { display: none; }
 <!-- STEP 1 -->
 <div id="step1" class="body">
 
-  <div>
-    <div class="label">Collezioni component token (questo file)</div>
-    <div class="item-list" id="localList">
-      <div class="loader"><div class="spin"></div>Caricamento…</div>
+  <!-- Forward: due colonne -->
+  <div id="step1Forward" style="display:flex;flex:1;gap:0;min-height:0;overflow:hidden">
+    <!-- sinistra: variabili locali -->
+    <div class="col-left">
+      <div>
+        <div class="label">Variabili locali</div>
+        <div class="item-list" id="localList">
+          <div class="loader"><div class="spin"></div>Caricamento…</div>
+        </div>
+      </div>
+      <div>
+        <div class="label">Stili</div>
+        <div class="item" id="tsToggleItem" onclick="toggleIncludeTextStyles()" style="cursor:pointer;user-select:none">
+          <input type="checkbox" id="tsCheckbox" style="pointer-events:none;accent-color:var(--accent)">
+          <span class="item-name">Includi stili di testo</span>
+          <span class="item-count" id="tsCount">…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-divider"></div>
+
+    <!-- destra: Foundations -->
+    <div class="col-right" id="libSection">
+      <div>
+        <div class="label-row">
+          <div class="label">Foundations</div>
+          <button class="select-all-btn" id="selAllBtn" onclick="selectAllLibs()" style="display:none">Tutte</button>
+        </div>
+        <div id="libList">
+          <div class="loader"><div class="spin"></div>Caricamento…</div>
+        </div>
+        <div style="margin-top:6px;display:flex;align-items:center;justify-content:space-between">
+          <div id="pillsArea" class="selected-pills" style="flex:1"></div>
+          <button class="btn" id="reloadLibBtn" onclick="reloadLibraries()" style="font-size:10px;padding:4px 9px;flex-shrink:0;margin-left:6px">&#8635;</button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div id="libSection">
-    <div class="label-row">
-      <div class="label">Collezioni Foundations (libreria)</div>
-      <button class="select-all-btn" id="selAllBtn" onclick="selectAllLibs()" style="display:none">Seleziona tutte</button>
+  <!-- Reverse: colonna singola -->
+  <div id="step1Reverse" style="display:none;flex-direction:column;gap:10px;flex:1">
+    <div>
+      <div class="label">Collezioni component token (questo file)</div>
+      <div class="item-list" id="localListReverse"></div>
     </div>
-    <div id="libLoadArea">
-      <button class="btn" id="loadLibBtn" onclick="loadLibraries()">&#128269; Carica librerie abilitate</button>
-    </div>
-    <div id="libList" style="margin-top:7px"></div>
-    <div id="pillsArea" class="selected-pills" style="margin-top:7px"></div>
   </div>
 
-  <div class="notice" id="notice1">
-    <strong>Seleziona tutte le collezioni Foundations</strong> che potrebbero contenere le token
-    referenziate (semantic, primitive, spacing, ecc.).
-    Il file Foundations deve essere pubblicato e abilitato via Assets → Librerie → ✓.
+  <div class="notice" id="notice1" style="flex-shrink:0">
+    <strong>Seleziona le collezioni Foundations</strong> che potrebbero contenere le token referenziate.
+    Il file deve essere pubblicato e abilitato via Assets → Librerie → ✓.
   </div>
 </div>
 
@@ -235,6 +266,28 @@ tr.row-hidden { display: none; }
     Le token <strong>No match</strong> non sono state trovate in nessuna delle collezioni Foundations selezionate.<br>
     Verifica i nomi o aggiungi altre collezioni.
   </div>
+  <div id="textStylesSection" style="display:none">
+    <div class="preview-card" style="margin-top:10px">
+      <div style="padding:8px 10px 4px; display:flex; align-items:center; justify-content:space-between">
+        <span class="label" style="margin:0; font-size:11px">Stili di testo</span>
+        <span class="group-badge" id="tsStyleCount"></span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk-cell"><input type="checkbox" id="chkAllStyles" onclick="toggleAllStyleRows(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
+              <th>Nome stile</th>
+              <th style="width:16px"></th>
+              <th>Campi rimappabili</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody id="textStylesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- STEP 3 -->
@@ -257,24 +310,32 @@ var state = {
   localCollections: [],
   selectedLocalIds: [],
   libraryCollections: [],
-  selectedLibKeys: [],      // ARRAY — multi-selezione
+  selectedLibKeys: [],
   previewStats: null,
-  previewRows: [],          // tutte le righe
-  searchQuery: '',          // testo di ricerca attivo
-  filterMode: 'all',        // 'all' | 'nomatch'
-  selectedRowIds: {},       // id -> true per le righe spuntate
-  openGroups: {},           // groupKey -> false = chiuso (assente = aperto)
-  groupKeys: []             // ordered list of group keys
+  previewRows: [],
+  searchQuery: '',
+  filterMode: 'all',
+  selectedRowIds: {},
+  openGroups: {},
+  groupKeys: [],
+  includeTextStyles: false,
+  textStyleCount: 0,
+  previewTextStyles: [],
+  selectedStyleIds: {},
+  openStyleGroups: {},
+  styleGroupKeys: []
 };
 
 window.onmessage = function(event) {
   var msg = event.data.pluginMessage;
   if (!msg) { return; }
-  if      (msg.type === 'LOCAL_COLLECTIONS')   { onLocalCollections(msg.payload); }
-  else if (msg.type === 'LIBRARY_COLLECTIONS') { onLibraryCollections(msg.payload); }
-  else if (msg.type === 'PREVIEW_RESULT')      { onPreviewResult(msg.payload); }
-  else if (msg.type === 'EXECUTE_RESULT')      { onExecuteResult(msg.payload); }
-  else if (msg.type === 'ERROR')               { onError(msg.payload); }
+  if      (msg.type === 'LOCAL_COLLECTIONS')        { onLocalCollections(msg.payload); }
+  else if (msg.type === 'LIBRARY_COLLECTIONS')       { onLibraryCollections(msg.payload); }
+  else if (msg.type === 'LIBRARY_COLLECTIONS_ERROR') { onLibraryCollectionsError(msg.payload); }
+  else if (msg.type === 'TEXT_STYLE_COUNT')          { onTextStyleCount(msg.payload); }
+  else if (msg.type === 'PREVIEW_RESULT')            { onPreviewResult(msg.payload); }
+  else if (msg.type === 'EXECUTE_RESULT')            { onExecuteResult(msg.payload); }
+  else if (msg.type === 'ERROR')                     { onError(msg.payload); }
 };
 
 function send(type, payload) {
@@ -284,6 +345,24 @@ function send(type, payload) {
 send('INIT');
 
 /* ── Collezioni locali ── */
+function onTextStyleCount(payload) {
+  state.textStyleCount = payload.count;
+  var el = document.getElementById('tsCount');
+  if (el) { el.textContent = payload.count; }
+}
+
+function toggleIncludeTextStyles() {
+  state.includeTextStyles = !state.includeTextStyles;
+  var chk = document.getElementById('tsCheckbox');
+  var item = document.getElementById('tsToggleItem');
+  if (chk) { chk.checked = state.includeTextStyles; }
+  if (item) {
+    if (state.includeTextStyles) { item.classList.add('sel-local'); }
+    else { item.classList.remove('sel-local'); }
+  }
+  updateNext();
+}
+
 function onLocalCollections(collections) {
   state.localCollections = collections;
   var container = document.getElementById('localList');
@@ -306,20 +385,37 @@ function toggleLocal(el) {
   var chk = el.querySelector('input');
   if (idx === -1) { state.selectedLocalIds.push(id); chk.checked = true; el.classList.add('sel-local'); }
   else { state.selectedLocalIds.splice(idx, 1); chk.checked = false; el.classList.remove('sel-local'); }
+  // Sincronizza l'eventuale lista gemella (forward ↔ reverse)
+  var twin = document.querySelector('#localList [data-id="' + id + '"], #localListReverse [data-id="' + id + '"]');
+  if (twin && twin !== el) {
+    twin.querySelector('input').checked = (idx === -1);
+    if (idx === -1) { twin.classList.add('sel-local'); } else { twin.classList.remove('sel-local'); }
+  }
   updateNext();
 }
 
 /* ── Librerie Foundations — MULTI selezione ── */
-function loadLibraries() {
-  document.getElementById('loadLibBtn').disabled = true;
-  document.getElementById('loadLibBtn').textContent = '⏳ Caricamento…';
+function reloadLibraries() {
+  var btn = document.getElementById('reloadLibBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   document.getElementById('libList').innerHTML = '<div class="loader"><div class="spin"></div>Ricerca librerie…</div>';
+  document.getElementById('selAllBtn').style.display = 'none';
+  state.selectedLibKeys = [];
+  renderPills();
+  updateNext();
   send('LOAD_LIBRARY_COLLECTIONS');
+}
+
+function onLibraryCollectionsError(msg) {
+  document.getElementById('libList').innerHTML = '<div class="notice err" style="margin:0">' + escHtml(msg) + '</div>';
+  var btn = document.getElementById('reloadLibBtn');
+  if (btn) { btn.disabled = false; btn.textContent = '&#8635; Ricarica'; }
 }
 
 function onLibraryCollections(collections) {
   state.libraryCollections = collections;
-  document.getElementById('loadLibBtn').style.display = 'none';
+  var btn = document.getElementById('reloadLibBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = '&#8635; Ricarica'; }
   document.getElementById('selAllBtn').style.display = collections.length ? '' : 'none';
 
   var container = document.getElementById('libList');
@@ -428,10 +524,11 @@ function updateNext() {
     if (state.mode === 'reverse') {
       btn.disabled = (state.selectedLocalIds.length === 0);
     } else {
-      btn.disabled = (state.selectedLocalIds.length === 0 || state.selectedLibKeys.length === 0);
+      var hasLeft = (state.selectedLocalIds.length > 0 || state.includeTextStyles);
+      btn.disabled = (!hasLeft || state.selectedLibKeys.length === 0);
     }
   } else if (state.step === 2) {
-    var nSelected = Object.keys(state.selectedRowIds).length;
+    var nSelected = Object.keys(state.selectedRowIds).length + Object.keys(state.selectedStyleIds).length;
     btn.disabled = (nSelected === 0);
   }
 }
@@ -455,19 +552,41 @@ function switchMode(mode) {
   document.getElementById('headerDesc').textContent = mode === 'forward'
     ? 'Segue la catena di alias dalle component token verso le token Foundations, cercandole per nome.'
     : 'Reindirizza gli alias dalle variabili Foundations alle token locali omonime.';
-  document.getElementById('libSection').style.display = mode === 'forward' ? '' : 'none';
+
+  var isForward = (mode === 'forward');
+  document.getElementById('step1Forward').style.display = isForward ? 'flex' : 'none';
+  document.getElementById('step1Reverse').style.display = isForward ? 'none' : 'flex';
+
   var n1 = document.getElementById('notice1');
   n1.className = 'notice';
-  n1.innerHTML = mode === 'forward'
-    ? '<strong>Seleziona tutte le collezioni Foundations</strong> che potrebbero contenere le token referenziate. Il file Foundations deve essere pubblicato e abilitato via Assets → Librerie → ✓.'
+  n1.innerHTML = isForward
+    ? '<strong>Seleziona le collezioni Foundations</strong> che potrebbero contenere le token referenziate. Il file deve essere pubblicato e abilitato via Assets → Librerie → ✓.'
     : '<strong>Seleziona le collezioni component</strong> da reindirizzare. Il plugin cerca per ogni alias una token locale (<em>non</em> library) con lo stesso nome identico.';
-  document.getElementById('statLabelAlready').textContent = mode === 'forward' ? 'Già library' : 'Già locale';
-  document.getElementById('thTarget').textContent = mode === 'forward' ? 'Semantic / Primitive target' : 'Token locale target';
+  document.getElementById('statLabelAlready').textContent = isForward ? 'Già library' : 'Già locale';
+  document.getElementById('thTarget').textContent = isForward ? 'Semantic / Primitive target' : 'Token locale target';
 
-  var items = document.querySelectorAll('#localList .item');
-  for (var i = 0; i < items.length; i++) {
-    items[i].querySelector('input').checked = false;
-    items[i].classList.remove('sel-local');
+  // In reverse, popola la lista locale separata se non ancora popolata
+  if (!isForward) {
+    var revList = document.getElementById('localListReverse');
+    if (!revList.children.length) {
+      var html = '';
+      for (var i = 0; i < state.localCollections.length; i++) {
+        var c = state.localCollections[i];
+        html += '<div class="item" data-id="' + c.id + '" onclick="toggleLocal(this)">' +
+          '<input type="checkbox">' +
+          '<span class="item-name">' + escHtml(c.name) + '</span>' +
+          '<span class="item-count">' + c.variableCount + '</span>' +
+          '</div>';
+      }
+      revList.innerHTML = html || '<div class="empty">Nessuna collezione trovata.</div>';
+    }
+  }
+
+  // Reset selezioni visive
+  var items = document.querySelectorAll('#localList .item, #localListReverse .item');
+  for (var j = 0; j < items.length; j++) {
+    items[j].querySelector('input').checked = false;
+    items[j].classList.remove('sel-local');
   }
   setStep(1);
 }
@@ -509,9 +628,9 @@ function doPreview() {
   setStep(2);
   document.getElementById('btnNext').disabled = true;
   if (isReverse) {
-    send('PREVIEW_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds });
+    send('PREVIEW_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds, includeTextStyles: state.includeTextStyles });
   } else {
-    send('PREVIEW_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys });
+    send('PREVIEW_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys, includeTextStyles: state.includeTextStyles });
   }
 }
 
@@ -539,6 +658,21 @@ function onPreviewResult(data) {
   renderPreviewTable(getFilteredRows());
   syncHeaderCheckbox();
   if (s.noMatch > 0) { document.getElementById('notice2').style.display = 'block'; }
+
+  state.previewTextStyles = data.textStyles || [];
+  state.selectedStyleIds = {};
+  state.openStyleGroups = {};
+  var tsSection = document.getElementById('textStylesSection');
+  if (state.previewTextStyles.length > 0) {
+    for (var ts = 0; ts < state.previewTextStyles.length; ts++) {
+      if (state.previewTextStyles[ts].canRemap) { state.selectedStyleIds[state.previewTextStyles[ts].styleId] = true; }
+    }
+    tsSection.style.display = '';
+    renderTextStylesTable(state.previewTextStyles);
+    syncStyleHeaderCheckbox();
+  } else {
+    tsSection.style.display = 'none';
+  }
   updateNext();
 }
 
@@ -789,14 +923,200 @@ function syncGroupCheckbox(gKey) {
   if (selected > 0 && selected < total) { chk.indeterminate = true; }
 }
 
+/* ── Text styles preview ── */
+function renderTextStylesTable(styles) {
+  var tbody = document.getElementById('textStylesBody');
+  if (!styles.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Nessuno stile con variabili associate.</td></tr>';
+    state.styleGroupKeys = [];
+    document.getElementById('tsStyleCount').textContent = '';
+    return;
+  }
+  var remappableTotal = 0;
+  for (var t = 0; t < styles.length; t++) { if (styles[t].canRemap) { remappableTotal++; } }
+  document.getElementById('tsStyleCount').textContent = styles.length + ' stili' + (remappableTotal < styles.length ? ' · ' + remappableTotal + ' rimapp.' : '');
+
+  var groups = Object.create(null);
+  var groupOrder = [];
+  for (var i = 0; i < styles.length; i++) {
+    var gKey = getGroupKey(styles[i].styleName);
+    if (!groups[gKey]) { groups[gKey] = []; groupOrder.push(gKey); }
+    groups[gKey].push(styles[i]);
+  }
+  state.styleGroupKeys = groupOrder;
+
+  var html = '';
+  for (var g = 0; g < groupOrder.length; g++) {
+    var gKey = groupOrder[g];
+    var gRows = groups[gKey];
+    var remappable = 0;
+    for (var k = 0; k < gRows.length; k++) { if (gRows[k].canRemap) { remappable++; } }
+    var safeId = 'sgchk_' + gKey.replace(/[^a-zA-Z0-9]/g, '_');
+    var gKeyAttr = escHtml(gKey);
+    var gKeyJs   = gKey.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var badgeText = gRows.length + ' stili' + (remappable < gRows.length ? ' &middot; ' + remappable + ' rimapp.' : '');
+    var gChkHtml = remappable > 0
+      ? '<input type="checkbox" id="' + safeId + '" checked style="cursor:pointer;accent-color:var(--accent)" onclick="toggleStyleGroupCheckbox(event,\'' + gKeyJs + '\')">'
+      : '';
+    html += '<tr class="group-row" data-stgroup="' + gKeyAttr + '" onclick="toggleStyleAccordion(\'' + gKeyJs + '\')">' +
+      '<td class="chk-cell">' + gChkHtml + '</td>' +
+      '<td colspan="4" class="group-td"><div class="group-cell">' +
+        '<span class="chevron open">&#9654;</span>' +
+        '<span class="group-name">' + gKeyAttr + '</span>' +
+        '<span class="group-badge">' + badgeText + '</span>' +
+      '</div></td></tr>';
+    for (var j = 0; j < gRows.length; j++) {
+      var r = gRows[j];
+      var badgeCls, badgeLabel;
+      if (r.primaryStatus === 'remap')           { badgeCls = 'remap';   badgeLabel = '✓ Rimappa'; }
+      else if (r.primaryStatus === 'no_match')   { badgeCls = 'nomatch'; badgeLabel = 'No match'; }
+      else                                        { badgeCls = 'lib';     badgeLabel = 'Già library'; }
+      var sIdJs = r.styleId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      var rowCheckedCls = (r.canRemap && state.selectedStyleIds[r.styleId]) ? ' row-checked' : '';
+      var chkHtml = r.canRemap
+        ? '<td class="chk-cell"><input type="checkbox"' + (state.selectedStyleIds[r.styleId] ? ' checked' : '') + ' style="cursor:pointer;accent-color:var(--accent)" onclick="toggleStyleRow(event,\'' + sIdJs + '\')" ></td>'
+        : '<td class="chk-cell"></td>';
+      var targetHtml = r.remappableCount > 0
+        ? '<td class="target">' + escHtml(r.fieldSummary) + '</td>'
+        : '<td class="target dim">—</td>';
+      var rowCls = 'token-row' + (r.canRemap ? ' selectable' + rowCheckedCls : '');
+      html += '<tr class="' + rowCls + '" data-stgroup="' + gKeyAttr + '" onclick="styleRowClick(event,\'' + sIdJs + '\',this)">' +
+        chkHtml +
+        '<td class="mono">' + escHtml(r.styleName) + '</td><td class="arrow">→</td>' +
+        targetHtml +
+        '<td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
+    }
+  }
+  tbody.innerHTML = html;
+  for (var gi = 0; gi < groupOrder.length; gi++) { syncStyleGroupCheckbox(groupOrder[gi]); }
+}
+
+function toggleStyleAccordion(gKey) {
+  var isOpen = (state.openStyleGroups[gKey] !== false);
+  state.openStyleGroups[gKey] = !isOpen;
+  var nowOpen = !isOpen;
+  var allRows = document.querySelectorAll('#textStylesBody tr');
+  for (var i = 0; i < allRows.length; i++) {
+    if (allRows[i].getAttribute('data-stgroup') !== gKey) { continue; }
+    if (allRows[i].classList.contains('group-row')) {
+      var chev = allRows[i].querySelector('.chevron');
+      if (chev) { chev.className = nowOpen ? 'chevron open' : 'chevron'; }
+    } else {
+      if (nowOpen) { allRows[i].classList.remove('row-hidden'); }
+      else { allRows[i].classList.add('row-hidden'); }
+    }
+  }
+}
+
+function toggleStyleGroupCheckbox(event, gKey) {
+  event.stopPropagation();
+  var shouldSelect = event.target.checked;
+  var allTokenRows = document.querySelectorAll('#textStylesBody tr.token-row');
+  for (var i = 0; i < allTokenRows.length; i++) {
+    if (allTokenRows[i].getAttribute('data-stgroup') !== gKey) { continue; }
+    var rowChk = allTokenRows[i].querySelector('input[type=checkbox]');
+    if (!rowChk) { continue; }
+    rowChk.checked = shouldSelect;
+    if (shouldSelect) { allTokenRows[i].classList.add('row-checked'); }
+    else { allTokenRows[i].classList.remove('row-checked'); }
+  }
+  for (var j = 0; j < state.previewTextStyles.length; j++) {
+    var s = state.previewTextStyles[j];
+    if (getGroupKey(s.styleName) === gKey && s.canRemap) {
+      if (shouldSelect) { state.selectedStyleIds[s.styleId] = true; }
+      else { delete state.selectedStyleIds[s.styleId]; }
+    }
+  }
+  event.target.indeterminate = false;
+  syncStyleHeaderCheckbox();
+  updateNext();
+}
+
+function syncStyleGroupCheckbox(gKey) {
+  var total = 0; var selected = 0;
+  for (var i = 0; i < state.previewTextStyles.length; i++) {
+    var s = state.previewTextStyles[i];
+    if (getGroupKey(s.styleName) === gKey && s.canRemap) {
+      total++;
+      if (state.selectedStyleIds[s.styleId]) { selected++; }
+    }
+  }
+  var chk = document.getElementById('sgchk_' + gKey.replace(/[^a-zA-Z0-9]/g, '_'));
+  if (!chk) { return; }
+  chk.indeterminate = false;
+  chk.checked = (total > 0 && selected === total);
+  if (selected > 0 && selected < total) { chk.indeterminate = true; }
+}
+
+function toggleStyleRow(event, id) {
+  event.stopPropagation();
+  var chk = event.target;
+  var tr = chk.closest('tr');
+  applyStyleRowSelection(id, chk.checked, tr);
+}
+
+function styleRowClick(event, id, tr) {
+  if (event.target.tagName === 'INPUT') { return; }
+  if (!tr.classList.contains('selectable')) { return; }
+  var chk = tr.querySelector('input[type=checkbox]');
+  if (!chk) { return; }
+  chk.checked = !chk.checked;
+  applyStyleRowSelection(id, chk.checked, tr);
+}
+
+function applyStyleRowSelection(id, checked, tr) {
+  var gKey = tr.getAttribute('data-stgroup');
+  if (checked) {
+    state.selectedStyleIds[id] = true;
+    tr.classList.add('row-checked');
+  } else {
+    delete state.selectedStyleIds[id];
+    tr.classList.remove('row-checked');
+  }
+  if (gKey) { syncStyleGroupCheckbox(gKey); }
+  syncStyleHeaderCheckbox();
+  updateNext();
+}
+
+function toggleAllStyleRows(chk) {
+  state.selectedStyleIds = {};
+  if (chk.checked) {
+    for (var j = 0; j < state.previewTextStyles.length; j++) {
+      if (state.previewTextStyles[j].canRemap) { state.selectedStyleIds[state.previewTextStyles[j].styleId] = true; }
+    }
+  }
+  var allTokenRows = document.querySelectorAll('#textStylesBody tr.token-row');
+  for (var i = 0; i < allTokenRows.length; i++) {
+    var rowChk = allTokenRows[i].querySelector('input[type=checkbox]');
+    if (rowChk) { rowChk.checked = !!chk.checked; }
+    if (chk.checked) { allTokenRows[i].classList.add('row-checked'); }
+    else { allTokenRows[i].classList.remove('row-checked'); }
+  }
+  for (var k = 0; k < state.styleGroupKeys.length; k++) { syncStyleGroupCheckbox(state.styleGroupKeys[k]); }
+  updateNext();
+}
+
+function syncStyleHeaderCheckbox() {
+  var total = 0; var selected = 0;
+  for (var j = 0; j < state.previewTextStyles.length; j++) {
+    if (state.previewTextStyles[j].canRemap) { total++; }
+  }
+  selected = Object.keys(state.selectedStyleIds).length;
+  var chkAll = document.getElementById('chkAllStyles');
+  if (!chkAll) { return; }
+  chkAll.checked = (total > 0 && selected === total);
+  chkAll.indeterminate = (selected > 0 && selected < total);
+}
+
 /* ── Execute ── */
 function doExecute() {
   setStep(3);
   var selectedIds = Object.keys(state.selectedRowIds);
+  var selectedStyleIds = Object.keys(state.selectedStyleIds);
   if (state.mode === 'reverse') {
-    send('EXECUTE_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds, selectedRowIds: selectedIds });
+    send('EXECUTE_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds, selectedRowIds: selectedIds, selectedStyleIds: selectedStyleIds });
   } else {
-    send('EXECUTE_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys, selectedRowIds: selectedIds });
+    send('EXECUTE_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys, selectedRowIds: selectedIds, selectedStyleIds: selectedStyleIds });
   }
 }
 
@@ -810,13 +1130,18 @@ function onExecuteResult(data) {
   }
   var logHtml = '';
   if (data.log && data.log.length > 0) {
-    var logLines = data.log.join('\n');
+    var logLines = '';
+    for (var li = 0; li < data.log.length; li++) {
+      var line = data.log[li];
+      var isErr = line.indexOf('[ERR') === 0;
+      logLines += '<div' + (isErr ? ' style="color:var(--red)"' : '') + '>' + escHtml(line) + '</div>';
+    }
     logHtml = '<div style="margin-top:12px;text-align:left">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">' +
         '<span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Log dettagliato (' + data.log.length + ' voci)</span>' +
         '<button onclick="copyLog()" style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:3px 9px;cursor:pointer;font-family:var(--font);font-weight:600" id="copyLogBtn">Copia</button>' +
       '</div>' +
-      '<div class="err-log" id="logContent" style="color:var(--muted);max-height:180px">' + escHtml(logLines) + '</div>' +
+      '<div class="err-log" id="logContent" style="color:var(--muted);max-height:180px">' + logLines + '</div>' +
     '</div>';
   }
   document.getElementById('resultBox').innerHTML =
@@ -862,6 +1187,7 @@ function onError(msg) {
 }
 
 function doClose() { send('CLOSE'); }
+
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
