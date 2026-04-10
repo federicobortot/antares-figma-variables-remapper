@@ -125,6 +125,15 @@ tbody tr.row-checked:hover { background: rgba(233,69,96,0.11); }
 .mode-toggle { display: flex; gap: 0; margin-top: 10px; background: var(--surface2); border-radius: var(--radius); padding: 3px; }
 .mode-btn { flex: 1; padding: 5px 8px; border: none; background: transparent; color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; border-radius: 6px; font-family: var(--font); transition: all 0.15s; }
 .mode-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+.search-bar { display: flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 0 10px; }
+.search-bar input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 11px; font-family: var(--font); padding: 7px 0; }
+.search-bar input::placeholder { color: var(--muted); }
+.search-clear { color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1; display: none; }
+.search-clear:hover { color: var(--text); }
+.filter-row { display: flex; align-items: center; gap: 6px; }
+.filter-btn { padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; font-family: var(--font); transition: all 0.12s; }
+.filter-btn.active { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.4); color: var(--red); }
+.filter-label { font-size: 10px; color: var(--muted); margin-left: 2px; }
 tbody tr.group-row { background: var(--surface2); cursor: pointer; user-select: none; }
 tbody tr.group-row:hover { background: rgba(255,255,255,0.07); }
 td.group-td { padding: 0; }
@@ -193,6 +202,18 @@ tr.row-hidden { display: none; }
       <div class="stat"><div class="stat-n yellow" id="sNoAlias">–</div><div class="stat-l">Valore diretto</div></div>
       <div class="stat"><div class="stat-n muted" id="sAlreadyLib">–</div><div class="stat-l" id="statLabelAlready">Già library</div></div>
     </div>
+    <div style="padding: 8px 10px 0; display:flex; flex-direction:column; gap:6px;">
+      <div class="search-bar">
+        <span style="color:var(--muted);font-size:11px">&#128269;</span>
+        <input type="text" id="searchInput" placeholder="Cerca token…" oninput="onSearchInput(this)">
+        <span class="search-clear" id="searchClear" onclick="clearSearch()">&#x2715;</span>
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">Mostra:</span>
+        <button class="filter-btn active" id="filterAll" onclick="setFilter('all')">Tutte</button>
+        <button class="filter-btn" id="filterNoMatch" onclick="setFilter('nomatch')">Solo no match</button>
+      </div>
+    </div>
     <div class="tbl-wrap">
       <table>
         <thead>
@@ -236,7 +257,9 @@ var state = {
   libraryCollections: [],
   selectedLibKeys: [],      // ARRAY — multi-selezione
   previewStats: null,
-  previewRows: [],          // tutte le righe rimappabili
+  previewRows: [],          // tutte le righe
+  searchQuery: '',          // testo di ricerca attivo
+  filterMode: 'all',        // 'all' | 'nomatch'
   selectedRowIds: {},       // id -> true per le righe spuntate
   openGroups: {},           // groupKey -> false = chiuso (assente = aperto)
   groupKeys: []             // ordered list of group keys
@@ -495,6 +518,11 @@ function onPreviewResult(data) {
   state.previewRows = data.rows;
   state.selectedRowIds = {};
   state.openGroups = {};
+  state.searchQuery = '';
+  state.filterMode = 'all';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').style.display = 'none';
+  setFilter('all', true); // reset visivo bottoni senza ri-renderizzare
 
   var s = data.stats;
   document.getElementById('sRemap').textContent      = s.remap;
@@ -506,7 +534,7 @@ function onPreviewResult(data) {
     if (data.rows[p].canRemap) { state.selectedRowIds[data.rows[p].localId] = true; }
   }
 
-  renderPreviewTable(data.rows);
+  renderPreviewTable(getFilteredRows());
   syncHeaderCheckbox();
   if (s.noMatch > 0) { document.getElementById('notice2').style.display = 'block'; }
   updateNext();
@@ -576,6 +604,47 @@ function syncHeaderCheckbox() {
 function getGroupKey(name) {
   var slash = name.indexOf('/');
   return slash !== -1 ? name.substring(0, slash) : '(altro)';
+}
+
+function getFilteredRows() {
+  var q = state.searchQuery.toLowerCase();
+  var onlyNoMatch = (state.filterMode === 'nomatch');
+  var result = [];
+  for (var i = 0; i < state.previewRows.length; i++) {
+    var r = state.previewRows[i];
+    if (onlyNoMatch && r.status !== 'no_match') { continue; }
+    if (q && r.localName.toLowerCase().indexOf(q) === -1 &&
+        (!r.aliasTargetName || r.aliasTargetName.toLowerCase().indexOf(q) === -1)) { continue; }
+    result.push(r);
+  }
+  return result;
+}
+
+function onSearchInput(input) {
+  state.searchQuery = input.value;
+  document.getElementById('searchClear').style.display = input.value ? '' : 'none';
+  state.openGroups = {};
+  renderPreviewTable(getFilteredRows());
+  syncHeaderCheckbox();
+}
+
+function clearSearch() {
+  state.searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').style.display = 'none';
+  state.openGroups = {};
+  renderPreviewTable(getFilteredRows());
+  syncHeaderCheckbox();
+}
+
+function setFilter(mode, noRender) {
+  state.filterMode = mode;
+  document.getElementById('filterAll').className     = 'filter-btn' + (mode === 'all'     ? ' active' : '');
+  document.getElementById('filterNoMatch').className = 'filter-btn' + (mode === 'nomatch' ? ' active' : '');
+  if (noRender) { return; }
+  state.openGroups = {};
+  renderPreviewTable(getFilteredRows());
+  syncHeaderCheckbox();
 }
 
 function gKeyToSafeId(gKey) {
