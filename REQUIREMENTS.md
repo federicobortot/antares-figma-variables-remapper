@@ -2,6 +2,149 @@
 
 ## 1. Obiettivo generale
 
+Il plugin consente di rimappare le variabili delle collezioni locali di un file Figma verso le variabili della libreria Foundations condivisa (e viceversa), oltre a rimappare le variabili associate alle proprietà degli stili di testo locali.
+
+---
+
+## 2. Modalità operative
+
+### 2.1 Forward (locale → Foundations)
+- Le variabili di componenti locali che attualmente puntano a variabili **primitive locali** devono essere ridirezionate verso le variabili equivalenti nella libreria Foundations.
+- La corrispondenza tra variabile locale e variabile Foundations avviene per **nome esatto**.
+- Ogni variabile può avere più mode: se anche un solo mode è rimappabile, la variabile appare come rimappabile.
+- Una variabile che già punta a una variabile library viene segnalata come "Già library" e non viene toccata.
+- Una variabile con valore diretto (non alias), incluso il valore numerico `0`, viene segnalata come "Valore diretto" e non viene toccata.
+
+### 2.2 Reverse (Foundations → locale)
+- Le variabili di componenti locali che attualmente puntano a variabili della libreria esterna (Foundations) devono essere ridirezionate verso le variabili locali equivalenti.
+- La corrispondenza avviene per **nome esatto**.
+- Se la variabile referenziata è una library variable non prontamente accessibile, il plugin tenta comunque di risolverla tramite l'ID.
+- Se non è possibile risolvere la variabile referenziata in nessun modo, viene segnalata come "Irrisolvibile".
+- Una variabile che punta già a una variabile locale viene segnalata come "Già locale" e non viene toccata.
+- Se due variabili locali hanno lo stesso nome, ha la precedenza la variabile **non remote** (cioè definita nel file corrente, non importata).
+
+---
+
+## 3. Selezione delle sorgenti (Step 1)
+
+### 3.1 Layout per modalità
+- **Forward**: due colonne — a sinistra le sorgenti locali da rimappare, a destra le librerie Foundations di destinazione.
+- **Reverse**: una sola colonna con le collezioni locali da rimappare (nessuna libreria di destinazione necessaria).
+- Il toggle Forward/Reverse è accessibile solo allo step 1. Cambiare modalità resetta tutte le selezioni.
+
+### 3.2 Colonna sinistra — sorgenti locali
+- Elenco di tutte le **collezioni di variabili locali** con il numero di variabili per collezione.
+- Le collezioni sono mostrate **tutte in sequenza**, senza altezza massima né scroll interno al contenitore.
+- Selezione multipla: si possono selezionare più collezioni insieme.
+- La selezione è **condivisa** tra forward e reverse: selezionare una collezione in una modalità la mantiene selezionata anche quando si passa all'altra.
+- Sezione **"Stili"** (nome generico, progettato per espandersi in futuro con grid, colori, ombre):
+  - Checkbox **"Includi stili di testo"** con conteggio degli stili locali presenti nel file.
+  - Il conteggio viene caricato automaticamente all'apertura del plugin.
+  - Attivare o disattivare questa checkbox abilita/disabilita immediatamente il pulsante "Avanti".
+
+### 3.3 Colonna destra — librerie Foundations (solo forward)
+- Elenco delle collezioni disponibili nelle librerie di team, raggruppate per nome di libreria.
+- Le librerie vengono **caricate automaticamente** all'apertura del plugin, senza richiedere azioni all'utente.
+- Durante il caricamento viene mostrato un indicatore visivo (loader).
+- Pulsante **↺ Ricarica** per ricaricare manualmente le librerie (utile se una libreria viene abilitata dopo l'apertura).
+- In caso di errore di caricamento, viene mostrato un messaggio esplicativo e il pulsante Ricarica rimane disponibile.
+- Le collezioni selezionate appaiono come **pillole rimovibili** riepilogative sopra la lista.
+- Pulsante **"Seleziona tutte"** visibile solo quando le librerie sono caricate.
+
+### 3.4 Condizioni per procedere allo step 2
+- **Forward**: almeno un elemento della colonna sinistra (una collezione locale **oppure** la spunta "Includi stili di testo") **e** almeno una collezione dalla colonna destra.
+- **Reverse**: almeno una collezione locale selezionata.
+
+---
+
+## 4. Anteprima (Step 2)
+
+### 4.1 Statistiche
+- Riga di contatori in cima: **Da rimappare**, **No match**, **Valore diretto**, **Già library** (in forward) / **Già locale** (in reverse).
+
+### 4.2 Classificazione delle variabili
+
+| Stato mostrato | Significato | Checkbox presente |
+|---|---|---|
+| ✓ Rimappa | La variabile può essere rimappata | Sì |
+| No match | Nessuna corrispondente trovata nella destinazione | No |
+| Valore diretto | La variabile ha un valore diretto, non è un alias | No |
+| Già library | (forward) Punta già a una variabile library | No |
+| Già locale | (reverse) Punta già a una variabile locale | No |
+| Irrisolvibile | (reverse) Il riferimento non è risolvibile | No |
+
+- Le variabili non rimappabili appaiono nella tabella ma **senza checkbox** e non possono essere selezionate.
+- Lo stato mostrato riflette il primo mode della variabile; se i mode sono discordanti, il badge indica lo stato predominante.
+
+### 4.3 Raggruppamento in accordion
+- Le variabili sono raggruppate per il prefisso prima del primo `/` nel nome (es. `color/primary` → gruppo `color`).
+- Variabili senza `/` nel nome finiscono nel gruppo `(altro)`.
+- Ogni gruppo mostra quante variabili contiene e quante sono rimappabili.
+- I gruppi si aprono e chiudono con un click. Tutti i gruppi partono aperti; la ricerca li riapre tutti.
+- La checkbox di gruppo seleziona/deseleziona tutte le righe rimappabili del gruppo e supporta lo stato indeterminate (selezione parziale).
+
+### 4.4 Selezione righe
+- All'apertura dell'anteprima tutte le righe rimappabili sono **pre-selezionate**.
+- Checkbox globale nell'header con stato indeterminate quando la selezione è parziale.
+- Il pulsante "⚡ Esegui remapping" è abilitato solo se almeno una riga (variabile o stile) è selezionata.
+
+### 4.5 Ricerca e filtro
+- Barra di ricerca testuale: filtra per nome della variabile o per nome del target.
+- Pulsante × per svuotare la ricerca.
+- Filtri rapidi: **Tutte**, **No match**, **Valore diretto**, **Già library/locale**.
+- Ricerca e filtro si combinano tra loro.
+- La sezione stili non è soggetta a ricerca o filtro.
+
+### 4.6 Stili di testo
+- Se "Includi stili di testo" è attivo, viene mostrata una sezione separata sotto la tabella delle variabili.
+- La sezione mostra solo gli stili che hanno almeno un campo tra `fontSize`, `lineHeight`, `letterSpacing`, `paragraphSpacing`, `paragraphIndent` associato a una variabile rimappabile.
+- Gli stili senza binding variabile su nessuno di questi campi non compaiono.
+- Stessa struttura accordion + checkbox della tabella variabili.
+- La colonna centrale indica i nomi dei campi che verranno aggiornati.
+- All'apertura dell'anteprima tutti gli stili rimappabili sono **pre-selezionati**.
+
+### 4.7 Avvisi
+- Se ci sono variabili "No match", viene mostrato un avviso che suggerisce di verificare i nomi o abilitare altre collezioni.
+
+---
+
+## 5. Esecuzione (Step 3)
+
+### 5.1 Cosa viene modificato
+- Per ogni variabile selezionata, tutti i mode vengono aggiornati con il nuovo riferimento.
+- Per ogni stile di testo selezionato, tutti i campi rimappabili vengono aggiornati con il nuovo binding.
+- Variabili e stili vengono elaborati nello stesso passaggio: il risultato finale è cumulativo.
+
+### 5.2 Risultato
+- Titolo di esito: **"Remapping completato!"** (verde) o **"Completato con avvisi"** (giallo) se ci sono errori parziali.
+- Contatori: quante variabili/stili sono stati rimappati, quanti saltati.
+- Testo contestuale: *"ora puntano alle Foundations"* (forward) / *"ora puntano alle token locali"* (reverse).
+
+### 5.3 Log dettagliato
+- Ogni operazione genera una riga nel log: token nome, campo (per gli stili), valore precedente → valore nuovo.
+- Le righe di **errore** sono evidenziate in rosso; tutte le altre in grigio neutro.
+- Pulsante **Copia** per copiare l'intero log negli appunti.
+
+---
+
+## 6. Navigazione e UX generale
+
+- Plugin a **3 step** con barra di avanzamento visiva: Selezione → Anteprima → Risultato.
+- Allo step 1 il pulsante principale si chiama **"Anteprima →"**.
+- Allo step 2 il pulsante principale si chiama **"⚡ Esegui remapping"** e ha aspetto "pericoloso" (rosso) per segnalare che l'operazione modifica il file.
+- Allo step 3 non ci sono pulsanti Avanti/Indietro; il pulsante Chiudi cambia aspetto per indicare il completamento.
+- Il pulsante **"← Indietro"** dallo step 2 torna allo step 1 mantenendo le selezioni già fatte.
+
+---
+
+## 7. Feature future previste (non ancora implementate)
+
+- **Sezione "Stili" espansa**: oltre agli stili di testo, gestire anche grid styles, color styles, effect styles. Il nome "Stili" (anziché "Stili di testo") è stato scelto esplicitamente per questa espansione futura.
+- Eventuale supporto a librerie esterne anche in modalità reverse.
+
+
+## 1. Obiettivo generale
+
 Il plugin Figma consente di rimappare variabili di componenti locali verso variabili della libreria Foundations (e viceversa), e di fare lo stesso con i valori di binding delle proprietà degli stili di testo.
 
 ---
@@ -9,97 +152,149 @@ Il plugin Figma consente di rimappare variabili di componenti locali verso varia
 ## 2. Modalità operative
 
 ### 2.1 Forward (locale → Foundations)
-- Le variabili di componenti locali che puntano a variabili primitive locali (es. collezione "primitives") devono essere reimpostate tramite `VARIABLE_ALIAS` verso le variabili equivalenti nella libreria Foundations.
-- La corrispondenza avviene per **nome** della variabile.
+- Le variabili di componenti locali che puntano a variabili primitive **locali** (non library) vengono reimpostate via `VARIABLE_ALIAS` verso le variabili equivalenti nella libreria Foundations.
+- La corrispondenza avviene per **nome esatto** della variabile.
+- Se il valore di un mode non è un `VARIABLE_ALIAS` (es. valore diretto, incluso `0` per variabili FLOAT), il mode viene classificato come `no_alias`.
+- Se l'alias punta a una variabile già library (non presente in `getLocalVariables()`), il mode è `already_library`.
+- ⚠️ **Bug noto**: il check `value && value.type === 'VARIABLE_ALIAS'` fallisce quando `value === 0` (FLOAT). Il check corretto è `typeof value === 'object' && value !== null && value.type === 'VARIABLE_ALIAS'`.
 
 ### 2.2 Reverse (Foundations → locale)
-- Le variabili di componenti locali che puntano a variabili di una libreria esterna (Foundations) devono essere reindirizzate verso le variabili locali equivalenti.
-- La corrispondenza avviene per **nome** della variabile.
+- Le variabili di componenti locali che puntano a variabili di una libreria esterna vengono reindirizzate verso le variabili locali equivalenti.
+- La corrispondenza avviene per **nome esatto** della variabile.
+- Se `getLocalVariables()` non contiene la variabile referenziata, si usa `figma.variables.getVariableById(id)` come fallback.
+- Se anche il fallback fallisce, lo status è `unresolvable`.
+- Se l'alias punta già a una variabile locale (non library), lo status è `already_local`.
+- **`buildTargetMaps`** usa un approccio a due passaggi: le variabili remote non-component hanno priorità bassa; le variabili non-remote non-component sovrascrivono (priorità alta).
 
 ---
 
 ## 3. Selezione delle sorgenti (Step 1)
 
-### 3.1 Colonna sinistra — elementi da rimappare
-- Mostrare tutte le **collezioni di variabili locali** con numero di variabili per collezione.
-- Le collezioni devono essere mostrate **tutte in sequenza**, senza altezza massima né scroll interno.
-- Checkbox multipla: l'utente può selezionare una o più collezioni.
-- Sezione **"Stili"** (nome generico, per espansione futura a grid, colori, ombre):
-  - Checkbox "Includi stili di testo" con conteggio del numero di stili locali.
-  - La checkbox aggiorna immediatamente la validità del pulsante "Avanti".
+### 3.1 Layout
+- **Forward**: layout a due colonne (sinistra: elementi locali; destra: librerie Foundations).
+- **Reverse**: layout a singola colonna (sinistra: collezioni locali; nessuna colonna destra).
+- Il toggle Forward/Reverse è visibile nell'header solo allo step 1.
+- Il cambio di modalità resetta `selectedLocalIds`, `selectedLibKeys`, preview e selezioni visive.
 
-### 3.2 Colonna destra (solo forward) — librerie Foundations
-- Mostrare le collezioni disponibili nelle librerie di team, raggruppate per libreria.
-- Le librerie devono essere **precaricate automaticamente** all'apertura del plugin (senza dover premere un pulsante).
-- Mostrare un loader durante il caricamento e un pulsante **↺ Ricarica** per ricaricare manualmente le librerie.
-- Selezione multipla di collezioni da librerie diverse.
+### 3.2 Colonna sinistra — elementi da rimappare
+- Elenco di tutte le **collezioni di variabili locali** con numero di variabili.
+- Le collezioni sono mostrate **tutte in sequenza** senza altezza massima né scroll interno.
+- Selezione multipla tramite checkbox.
+- La lista è **gemella** tra forward e reverse (`#localList` / `#localListReverse`): selezionare una collezione in un contesto la seleziona automaticamente nell'altro.
+- Sezione **"Stili"** (nome generico, pensato per espansione futura):
+  - Checkbox "Includi stili di testo" con conteggio stili locali (inviato dal backend via `TEXT_STYLE_COUNT` all'avvio).
+  - La checkbox chiama `updateNext()` immediatamente al toggle.
 
-### 3.3 Validazione per procedere allo step 2
-- **Forward**: almeno un elemento dalla colonna sinistra (una collezione locale **oppure** la checkbox "Includi stili di testo") E almeno una collezione dalla colonna destra.
-- **Reverse**: almeno una collezione locale selezionata.
+### 3.3 Colonna destra — librerie Foundations (solo forward)
+- Elenco delle collezioni disponibili nelle librerie di team, **raggruppate per `libraryName`**.
+- Le librerie vengono **precaricate automaticamente** all'avvio del plugin (`handleInit`).
+- Durante il caricamento: loader visibile. Pulsante **↺ Ricarica** per ricaricare manualmente.
+- In caso di errore di rete: messaggio rosso nella lista, pulsante Ricarica riabilitato.
+- Le collezioni selezionate appaiono come **pill** rimovibili sopra la lista.
+- Pulsante "Seleziona tutte" visibile solo se ci sono librerie caricate.
+
+### 3.4 Avvio in reverse — lista locale separata
+- La lista `#localListReverse` viene popolata lazily la prima volta che si entra in reverse mode.
+- Rispecchia esattamente `#localList` (stesse collezioni, stesso formato).
+
+### 3.5 Validazione per procedere allo step 2
+- **Forward**: `(selectedLocalIds.length > 0 || includeTextStyles) && selectedLibKeys.length > 0`.
+- **Reverse**: `selectedLocalIds.length > 0`.
 
 ---
 
 ## 4. Anteprima (Step 2)
 
-### 4.1 Variabili
-- Mostrare una tabella con tutte le variabili delle collezioni selezionate.
-- Per ogni variabile: nome, target (nome della variabile di destinazione), stato.
-- Stati possibili: **Da rimappare**, **No match**, **Valore diretto**, **Già library/locale**.
-- Riga di statistiche in alto con contatori per ogni stato.
+### 4.1 Intestazione tabella variabili
+- Colonna target si chiama **"Semantic / Primitive target"** in forward, **"Token locale target"** in reverse.
+- L'etichetta statistica "Già library" diventa **"Già locale"** in reverse (`#statLabelAlready`).
 
-### 4.2 Raggruppamento in accordion
-- Le righe sono raggruppate per il prefisso prima del primo `/` nel nome della variabile.
-- Ogni gruppo ha un'intestazione cliccabile che apre/chiude l'elenco.
-- Badge con numero di token e numero rimappabili per gruppo.
+### 4.2 Classificazione variabili
+| Status | Forward | Reverse |
+|---|---|---|
+| `remap` | alias → var locale con match in Foundations | alias → var library con match locale |
+| `no_match` | alias → var locale senza match in Foundations | alias → var library senza corrispondente locale |
+| `no_alias` | mode con valore diretto (non alias) | idem |
+| `already_library` | alias già punta a var library | — |
+| `already_local` | — | alias già punta a var locale |
+| `unresolvable` | — | alias non risolvibile nemmeno via `getVariableById` |
 
-### 4.3 Selezione righe
-- Ogni riga rimappabile ha una checkbox.
-- Checkbox di gruppo con supporto allo stato indeterminate (selezione parziale).
-- Checkbox globale "seleziona tutte" nell'header della tabella.
-- Il pulsante "⚡ Esegui remapping" è abilitato solo se almeno una riga (variabile o stile) è selezionata.
+- `canRemap = true` se **almeno un mode** ha status `remap`.
+- `primaryStatus` = status del **primo mode** (usato per badge e statistiche).
+- Le variabili con `canRemap = false` appaiono nella tabella ma senza checkbox.
 
-### 4.4 Ricerca e filtro
-- Barra di ricerca testuale con pulsante × per svuotare.
-- Filtri rapidi: **Tutte**, **No match**, **Valore diretto**, **Già library**.
+### 4.3 Raggruppamento accordion
+- Gruppi formati dal prefisso prima del primo `/` nel nome della variabile.
+- Variabili senza `/` vanno nel gruppo `(altro)`.
+- Stato accordion: assente = aperto, `false` = chiuso (in `state.openGroups`).
+- La ricerca resetta `state.openGroups` (riapre tutti i gruppi).
+- Badge gruppo: `N token · M rimapp.` (se M < N).
+- Checkbox di gruppo con indeterminate se selezione parziale.
 
-### 4.5 Stili di testo
-- Se "Includi stili di testo" è attivo, mostrare una sezione separata sotto la tabella variabili con i soli stili che hanno almeno un campo (`fontSize`, `lineHeight`, `letterSpacing`, `paragraphSpacing`, `paragraphIndent`) legato a una variabile rimappabile.
-- Stessa struttura accordion+checkbox della tabella variabili.
-- La colonna "Campi rimappabili" mostra i nomi dei campi che verranno aggiornati.
-- La sezione è nascosta se "Includi stili di testo" non è attivo o se non ci sono stili da mostrare.
+### 4.4 Selezione righe
+- Auto-selezione di tutte le righe `canRemap = true` alla ricezione del preview.
+- Checkbox header con stato indeterminate; conta su `state.previewRows` (non filtrate).
+- Pulsante "Avanti" in step 2 abilitato se `Object.keys(selectedRowIds).length + Object.keys(selectedStyleIds).length > 0`.
+
+### 4.5 Ricerca e filtro variabili
+- Ricerca su `localName` e `aliasTargetName`.
+- Filtri: `all` / `nomatch` / `noalias` / `alreadylib` (quest'ultimo copre sia `already_library` che `already_local`).
+- Filtro e ricerca sono combinati (`getFilteredRows`).
+
+### 4.6 Stili di testo
+- Sezione separata (`#textStylesSection`) visibile solo se `data.textStyles` ha elementi.
+- Campi considerati: `fontSize`, `lineHeight`, `letterSpacing`, `paragraphSpacing`, `paragraphIndent`.
+- Stili **senza nessun `boundVariables`** sui 5 campi sono **esclusi** dalla lista.
+- Stessa struttura accordion+checkbox delle variabili (`data-stgroup` invece di `data-group`).
+- Auto-selezione di tutti gli stili con `canRemap = true` alla ricezione del preview.
+- Nessun filtro/ricerca applicato alla sezione stili (sezione indipendente).
+
+### 4.7 Notice
+- `#notice2` visibile se `stats.noMatch > 0`, con spiegazione sulle token non trovate.
 
 ---
 
 ## 5. Esecuzione (Step 3)
 
-### 5.1 Esecuzione variabili
-- Per ogni variabile selezionata, importare la variabile Foundations e impostare `setValueForMode` con `createVariableAlias` per ogni mode della collezione.
-- Importare le variabili per chiave (`importVariableByKeyAsync`) con cache per evitare import duplicati.
+### 5.1 Esecuzione variabili (forward, asincrona)
+- Sequenza: per ogni variabile selezionata (`canRemap && selectedIdSet`), raccoglie le unique `foundationsKey`, le importa con `importVariableByKeyAsync`, poi esegue `setValueForMode(modeId, createVariableAlias(importedVar))` per ogni mode con status `remap`.
+- **`keyCache`** condiviso tra variabili e stili: evita import duplicati nella stessa sessione.
+- Al termine delle variabili, se `selectedStyleIds.length > 0`, chiama `executeTextStyles` invece di inviare `EXECUTE_RESULT`.
 
-### 5.2 Esecuzione stili di testo
-- Per ogni stile selezionato, chiamare `setBoundVariable(field, importedVar)` per ogni campo rimappabile.
-- Forward: import asincrono della variabile Foundations (stessa meccanica delle variabili).
-- Reverse: operazione sincrona (la variabile locale esiste già).
+### 5.2 Esecuzione variabili (reverse, sincrona)
+- Loop sincrono su `analysis`; `setValueForMode` con `createVariableAlias(localVar)`.
+- Al termine, se `selectedStyleIds.length > 0`, chiama `executeTextStylesReverse`; altrimenti invia `EXECUTE_RESULT`.
 
-### 5.3 Risultato e log
-- Mostrare numero di token/stili rimappati, saltati, eventuali errori.
-- Log dettagliato con una voce per ogni operazione.
-- Le righe di errore (`[ERR*]`) sono evidenziate in **rosso**; tutte le altre sono in grigio neutro.
-- Pulsante **Copia** per copiare il log negli appunti.
+### 5.3 Esecuzione stili (forward, asincrona)
+- Stessa struttura a catena Promise di `handleExecuteRemap`; riusa `keyCache`.
+- Chiama `style.setBoundVariable(field, importedVar)`.
+- Al termine invia `EXECUTE_RESULT` con contatori accumulati (variabili + stili).
+
+### 5.4 Esecuzione stili (reverse, sincrona)
+- Loop sincrono; chiama `style.setBoundVariable(field, localTarget)`.
+- Al termine invia `EXECUTE_RESULT` con contatori accumulati.
+
+### 5.5 Risultato e log
+- Titolo: **"✅ Remapping completato!"** o **"⚠️ Completato con avvisi"** se ci sono errori.
+- Contatori: `remapped` (variabili + stili), `skipped`, lista `errors`.
+- Testo contestuale: *"ora puntano alle Foundations"* (forward) / *"ora puntano alle token locali"* (reverse).
+- Log prefissi: `[OK]`, `[SKIP]`, `[ERR]`, `[ERR-IMPORT]`, `[SKIP-NOIMPORT]`, `[SKIP-NOVAR]`, `[OK-STYLE]`, `[ERR-STYLE]`, `[ERR-IMPORT-STYLE]`, `[SKIP-STYLE-NOIMPORT]`.
+- Righe che iniziano con `[ERR` → testo rosso; tutte le altre → grigio.
+- Pulsante **Copia** copia il log negli appunti (API Clipboard con fallback `execCommand`).
 
 ---
 
 ## 6. Navigazione e UX generale
 
-- Plugin a 3 step con barra di avanzamento visiva (Selezione → Anteprima → Risultato).
-- Pulsanti "← Indietro" (torna allo step 1 dalla anteprima) e "Chiudi".
-- Toggle **Modalità**: Forward / Reverse visibile nell'header, disponibile solo allo step 1.
-- Il cambio di modalità resetta le selezioni.
+- Plugin a 3 step: barra con classi `active` / `done` sui pallini numerati.
+- Step 1: pulsante "Anteprima →" (stile `btn-primary`).
+- Step 2: pulsante "⚡ Esegui remapping" (stile `btn-danger`), pulsante "← Indietro".
+- Step 3: nessun pulsante Avanti/Indietro; il pulsante Chiudi diventa stile `btn-success`.
+- Il pulsante "Indietro" dallo step 2 torna allo step 1 e **non** resetta le selezioni.
 
 ---
 
 ## 7. Feature future previste (non ancora implementate)
 
-- **Stili aggiuntivi nella sezione "Stili"**: gestione di grid styles, color styles, effect styles (ombre).
-- Eventuale espansione del supporto a librerie esterne per la modalità reverse.
+- **Stili aggiuntivi nella sezione "Stili"**: gestione di grid styles, color styles, effect styles — il nome "Stili" (invece di "Stili di testo") è stato scelto proprio per questa espansione.
+- Eventuale supporto per librerie esterne nella modalità reverse.
