@@ -79,7 +79,7 @@ Il plugin consente di rimappare le variabili delle collezioni locali di un file 
 ### 4.3 Raggruppamento in accordion
 - Le variabili sono raggruppate per il prefisso prima del primo `/` nel nome (es. `color/primary` → gruppo `color`).
 - Variabili senza `/` nel nome finiscono nel gruppo `(altro)`.
-- Ogni gruppo mostra quante variabili contiene e quante sono rimappabili.
+- Ogni gruppo mostra il **numero totale** di variabili che contiene, posizionato come colonna sticky a destra (allineata con la colonna "Stato" delle righe).
 - I gruppi si aprono e chiudono con un click. Tutti i gruppi partono aperti; la ricerca li riapre tutti.
 - La checkbox di gruppo seleziona/deseleziona tutte le righe rimappabili del gruppo e supporta lo stato indeterminate (selezione parziale).
 
@@ -95,7 +95,12 @@ Il plugin consente di rimappare le variabili delle collezioni locali di un file 
 - Ricerca e filtro si combinano tra loro.
 - La sezione stili non è soggetta a ricerca o filtro.
 
-### 4.6 Stili di testo
+### 4.6 Layout tabella
+- La colonna **"Stato"** è sticky a destra: rimane visibile anche quando la tabella scrolla orizzontalmente.
+- L'header della tabella è sticky in alto con sfondo opaco e rimane visibile durante lo scroll verticale; le celle sticky di header e body non si sovrappongono mai.
+- La finestra del plugin ha larghezza di 620px per consentire una lettura confortevole della tabella.
+
+### 4.7 Stili di testo
 - Se "Includi stili di testo" è attivo, viene mostrata una sezione separata sotto la tabella delle variabili.
 - La sezione mostra solo gli stili che hanno almeno un campo tra `fontSize`, `lineHeight`, `letterSpacing`, `paragraphSpacing`, `paragraphIndent` associato a una variabile rimappabile.
 - Gli stili senza binding variabile su nessuno di questi campi non compaiono.
@@ -103,7 +108,7 @@ Il plugin consente di rimappare le variabili delle collezioni locali di un file 
 - La colonna centrale indica i nomi dei campi che verranno aggiornati.
 - All'apertura dell'anteprima tutti gli stili rimappabili sono **pre-selezionati**.
 
-### 4.7 Avvisi
+### 4.8 Avvisi
 - Se ci sono variabili "No match", viene mostrato un avviso che suggerisce di verificare i nomi o abilitare altre collezioni.
 
 ---
