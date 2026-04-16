@@ -1131,26 +1131,43 @@ function onExecuteResult(data) {
   var logHtml = '';
   if (data.log && data.log.length > 0) {
     var logLines = '';
+    var logErrCount = 0;
     for (var li = 0; li < data.log.length; li++) {
       var line = data.log[li];
       var isErr = line.indexOf('[ERR') === 0;
+      if (isErr) { logErrCount++; }
       logLines += '<div' + (isErr ? ' style="color:var(--red)"' : '') + '>' + escHtml(line) + '</div>';
     }
+    var errBanner = logErrCount > 0
+      ? '<div style="margin-top:6px;padding:5px 10px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.25);border-radius:5px;font-size:10px;font-weight:700;color:var(--red)">' +
+          '⚠ ' + logErrCount + ' error' + (logErrCount === 1 ? 'e' : 'i') + ' riscontrat' + (logErrCount === 1 ? 'o' : 'i') +
+        '</div>'
+      : '<div style="margin-top:6px;padding:5px 10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.20);border-radius:5px;font-size:10px;font-weight:700;color:var(--green)">✓ Nessun errore</div>';
     logHtml = '<div style="margin-top:12px;text-align:left">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">' +
         '<span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Log dettagliato (' + data.log.length + ' voci)</span>' +
         '<button onclick="copyLog()" style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:3px 9px;cursor:pointer;font-family:var(--font);font-weight:600" id="copyLogBtn">Copia</button>' +
       '</div>' +
-      '<div class="err-log" id="logContent" style="color:var(--muted);max-height:180px">' + logLines + '</div>' +
+      '<div class="err-log" id="logContent" style="color:var(--muted);max-height:180px;background:rgba(255,255,255,0.03);border-color:var(--border)">' + logLines + '</div>' +
+      errBanner +
     '</div>';
   }
   document.getElementById('resultBox').innerHTML =
     '<div class="result-icon">' + (hasErrors ? '⚠️' : '✅') + '</div>' +
     '<div class="result-title">' + (hasErrors ? 'Completato con avvisi' : 'Remapping completato!') + '</div>' +
-    '<div class="result-sub">' +
-      '<span style="color:var(--green);font-weight:700">' + data.remapped + ' component token</span> ' +
-      (state.mode === 'reverse' ? 'ora puntano alle token locali.' : 'ora puntano alle Foundations.') + '<br>' +
-      (data.skipped > 0 ? '<span style="color:var(--muted)">' + data.skipped + ' saltate</span> (no alias o no match).' : '') +
+    '<div class="result-sub">' + (function() {
+      var dest = state.mode === 'reverse' ? 'token locali' : 'Foundations';
+      var lines = [];
+      if (data.remappedVars > 0) {
+        lines.push('<span style="color:var(--green);font-weight:700">' + data.remappedVars + ' variabil' + (data.remappedVars === 1 ? 'e' : 'i') + '</span> ora punt' + (data.remappedVars === 1 ? 'a' : 'ano') + ' alle ' + dest + '.');
+      }
+      if (data.remappedStyles > 0) {
+        lines.push('<span style="color:var(--green);font-weight:700">' + data.remappedStyles + ' stil' + (data.remappedStyles === 1 ? 'e' : 'i') + ' di testo</span> aggiornato' + (data.remappedStyles === 1 ? '' : 'i') + '.');
+      }
+      if (lines.length === 0) { lines.push('<span style="color:var(--muted)">Nessuna modifica effettuata.</span>'); }
+      if (data.skipped > 0) { lines.push('<span style="color:var(--muted)">' + data.skipped + ' saltate</span> (no alias o no match).'); }
+      return lines.join('<br>');
+    })() +
     '</div>' + errHtml + logHtml;
 }
 

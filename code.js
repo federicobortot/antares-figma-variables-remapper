@@ -88,7 +88,8 @@ function buildFoundationsMap(libraryCollectionKeys, cb, cbErr) {
 // ---------------------------------------------------------------------------
 // Execute stili di testo modalità reverse (sincrono)
 // ---------------------------------------------------------------------------
-function executeTextStylesReverse(selectedStyleIds, maps, remapped, skipped, errors, log) {
+function executeTextStylesReverse(selectedStyleIds, maps, remappedVars, skipped, errors, log) {
+  var remappedStyles = 0;
   var selectedIdSet = buildIdSet(selectedStyleIds);
   var styles = figma.getLocalTextStyles();
   for (var i = 0; i < styles.length; i++) {
@@ -96,8 +97,9 @@ function executeTextStylesReverse(selectedStyleIds, maps, remapped, skipped, err
     if (!selectedIdSet[style.id]) { continue; }
     var didRemap = false;
     try {
-      for (var f = 0; f < TEXT_STYLE_FIELDS.length; f++) {
-        var field = TEXT_STYLE_FIELDS[f];
+      var boundFields = Object.keys(style.boundVariables);
+      for (var f = 0; f < boundFields.length; f++) {
+        var field = boundFields[f];
         var binding = style.boundVariables[field];
         if (!binding) { continue; }
         var sourceVar = maps.localVarById[binding.id] || figma.variables.getVariableById(binding.id);
@@ -109,16 +111,14 @@ function executeTextStylesReverse(selectedStyleIds, maps, remapped, skipped, err
           didRemap = true;
         }
       }
-      if (didRemap) { remapped++; } else { skipped++; }
+      if (didRemap) { remappedStyles++; } else { skipped++; }
     } catch(e) {
       log.push('[ERR-STYLE] ' + style.name + ' | ' + String(e));
       errors.push({ name: style.name, error: String(e) });
     }
   }
-  postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, log: log });
+  postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedStyles: remappedStyles, skipped: skipped, errors: errors, log: log });
 }
-var TEXT_STYLE_FIELDS = ['fontSize', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'paragraphIndent'];
-
 function analyzeTextStyles(foundationsMapByName, localVarById) {
   var styles = figma.getLocalTextStyles();
   var results = [];
@@ -127,12 +127,13 @@ function analyzeTextStyles(foundationsMapByName, localVarById) {
     var remappableFields = [];
     var allBound = 0;
     var alreadyLibCount = 0;
-    for (var f = 0; f < TEXT_STYLE_FIELDS.length; f++) {
-      var field = TEXT_STYLE_FIELDS[f];
+    var boundFields0 = Object.keys(style.boundVariables);
+    for (var f = 0; f < boundFields0.length; f++) {
+      var field = boundFields0[f];
       var binding = style.boundVariables[field];
       if (!binding) { continue; }
       allBound++;
-      var targetVar = localVarById[binding.id];
+      var targetVar = localVarById[binding.id] || figma.variables.getVariableById(binding.id);
       if (!targetVar) {
         alreadyLibCount++;
       } else {
@@ -312,7 +313,7 @@ function handleExecuteRemap(payload) {
         else { skipped++; }
       }
 
-      var remapped = 0;
+      var remappedVars = 0;
       var errors = [];
       var keyCache = createSafeMap();
       var log = [];
@@ -321,9 +322,9 @@ function handleExecuteRemap(payload) {
         if (index >= tasks.length) {
           // ── stili di testo ──
           if (payload.selectedStyleIds && payload.selectedStyleIds.length > 0) {
-            executeTextStyles(payload.selectedStyleIds, foundationsMapByName, localVarById, keyCache, remapped, skipped, errors, log);
+            executeTextStyles(payload.selectedStyleIds, foundationsMapByName, localVarById, keyCache, remappedVars, skipped, errors, log);
           } else {
-            postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length, log: log });
+            postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedStyles: 0, skipped: skipped, errors: errors, total: analysis.length, log: log });
           }
           return;
         }
@@ -355,7 +356,7 @@ function handleExecuteRemap(payload) {
                   log.push('[SKIP-NOIMPORT] ' + item.variable.name + ' | mode:' + ma2.modeId + ' | key:' + ma2.foundationsKey);
                 }
               }
-              remapped++;
+              remappedVars++;
             } catch(e) {
               log.push('[ERR] ' + item.variable.name + ' | ' + String(e));
               errors.push({ name: item.variable.name, error: String(e) });
@@ -395,7 +396,8 @@ function handleExecuteRemap(payload) {
   );
 }
 
-function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById, keyCache, remapped, skipped, errors, log) {
+function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById, keyCache, remappedVars, skipped, errors, log) {
+  var remappedStyles = 0;
   var selectedIdSet = buildIdSet(selectedStyleIds);
   var styles = figma.getLocalTextStyles();
   var tasks = [];
@@ -403,11 +405,12 @@ function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById,
     if (!selectedIdSet[styles[i].id]) { continue; }
     var style = styles[i];
     var fieldsToRemap = [];
-    for (var f = 0; f < TEXT_STYLE_FIELDS.length; f++) {
-      var field = TEXT_STYLE_FIELDS[f];
+    var boundFields1 = Object.keys(style.boundVariables);
+    for (var f = 0; f < boundFields1.length; f++) {
+      var field = boundFields1[f];
       var binding = style.boundVariables[field];
       if (!binding) { continue; }
-      var targetVar = localVarById[binding.id];
+      var targetVar = localVarById[binding.id] || figma.variables.getVariableById(binding.id);
       if (!targetVar) { continue; }
       var foundKey = foundationsMapByName[targetVar.name];
       if (foundKey) { fieldsToRemap.push({ field: field, foundationsKey: foundKey, prevName: targetVar.name }); }
@@ -420,7 +423,7 @@ function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById,
 
   function processStyleNext() {
     if (taskIndex >= tasks.length) {
-      postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, log: log });
+      postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedStyles: remappedStyles, skipped: skipped, errors: errors, log: log });
       return;
     }
     var task = tasks[taskIndex];
@@ -446,7 +449,7 @@ function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById,
               log.push('[SKIP-STYLE-NOIMPORT] ' + task.style.name + ' | ' + fd.field + ' | key:' + fd.foundationsKey);
             }
           }
-          remapped++;
+          remappedStyles++;
         } catch(e) {
           log.push('[ERR-STYLE] ' + task.style.name + ' | ' + String(e));
           errors.push({ name: task.style.name, error: String(e) });
@@ -489,8 +492,9 @@ function analyzeTextStylesReverse(targetVarByName, localVarById) {
     var remappableFields = [];
     var allBound = 0;
     var alreadyLocalCount = 0;
-    for (var f = 0; f < TEXT_STYLE_FIELDS.length; f++) {
-      var field = TEXT_STYLE_FIELDS[f];
+    var boundFields2 = Object.keys(style.boundVariables);
+    for (var f = 0; f < boundFields2.length; f++) {
+      var field = boundFields2[f];
       var binding = style.boundVariables[field];
       if (!binding) { continue; }
       allBound++;
@@ -633,7 +637,7 @@ function handleExecuteRemapReverse(payload) {
   var componentVars = getLocalVarsForCollections(localCollectionIds);
   var analysis = analyzeVarsReverse(componentVars, maps.targetVarByName, maps.targetVarIds, maps.localVarById, collNameById);
 
-  var remapped = 0;
+  var remappedVars = 0;
   var skipped = 0;
   var errors = [];
   var log = [];
@@ -658,7 +662,7 @@ function handleExecuteRemapReverse(payload) {
           }
         }
       }
-      remapped++;
+      remappedVars++;
     } catch(e) {
       log.push('[ERR] ' + item.variable.name + ' | ' + String(e));
       errors.push({ name: item.variable.name, error: String(e) });
@@ -666,8 +670,8 @@ function handleExecuteRemapReverse(payload) {
   }
 
   if (payload.selectedStyleIds && payload.selectedStyleIds.length > 0) {
-    executeTextStylesReverse(payload.selectedStyleIds, maps, remapped, skipped, errors, log);
+    executeTextStylesReverse(payload.selectedStyleIds, maps, remappedVars, skipped, errors, log);
   } else {
-    postToUI('EXECUTE_RESULT', { remapped: remapped, skipped: skipped, errors: errors, total: analysis.length, log: log });
+    postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedStyles: 0, skipped: skipped, errors: errors, total: analysis.length, log: log });
   }
 }
