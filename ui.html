@@ -73,7 +73,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 .tbl-wrap { flex: 1; overflow-y: auto; min-height: 0; }
 table { width: 100%; border-collapse: collapse; }
-thead th { position: sticky; top: 0; padding: 6px 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); background: rgba(0,0,0,0.3); text-align: left; }
+thead th { position: sticky; top: 0; z-index: 2; padding: 6px 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); background: #141420; text-align: left; }
 tbody tr { border-top: 1px solid rgba(255,255,255,0.04); }
 tbody tr:hover { background: rgba(255,255,255,0.025); }
 td { padding: 5px 10px; font-size: 11px; }
@@ -92,6 +92,14 @@ tbody tr.row-checked:hover { background: rgba(233,69,96,0.11); }
 .badge.noalias { background: rgba(124,124,154,0.14); color: var(--muted); }
 .badge.nomatch { background: rgba(239,68,68,0.14);  color: var(--red); }
 .badge.lib     { background: rgba(59,130,246,0.14); color: var(--blue); }
+td.status-cell, th.status-cell { position: sticky; right: 0; z-index: 1; background: var(--surface); box-shadow: -2px 0 6px rgba(0,0,0,0.25); white-space: nowrap; }
+thead th.status-cell { z-index: 3; background: #141420; }
+tbody tr.group-row td.status-cell { background: var(--surface2); }
+tbody tr.group-row:hover td.status-cell { background: #34344d; }
+tbody tr:hover td.status-cell { background: #222233; }
+tbody tr.selectable:hover td.status-cell { background: #252536; }
+tbody tr.row-checked td.status-cell { background: #2a1f32; }
+tbody tr.row-checked:hover td.status-cell { background: #332134; }
 
 .result-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 20px; text-align: center; }
 .result-icon { font-size: 36px; margin-bottom: 10px; }
@@ -142,7 +150,7 @@ tbody tr.group-row:hover { background: rgba(255,255,255,0.07); }
 td.group-td { padding: 0; }
 .group-cell { display: flex; align-items: center; gap: 8px; padding: 7px 10px; }
 .group-name { font-weight: 700; font-size: 11px; flex: 1; }
-.group-badge { font-size: 10px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 1px 7px; border-radius: 20px; }
+.group-badge { font-size: 10px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 1px 7px; border-radius: 20px; white-space: nowrap; }
 .chevron { display: inline-block; font-size: 8px; color: var(--muted); transition: transform 0.15s; line-height: 1; flex-shrink: 0; }
 .chevron.open { transform: rotate(90deg); }
 tr.row-hidden { display: none; }
@@ -255,7 +263,7 @@ tr.row-hidden { display: none; }
             <th>Component token</th>
             <th style="width:16px"></th>
             <th id="thTarget">Semantic / Primitive target</th>
-            <th>Stato</th>
+            <th class="status-cell">Stato</th>
           </tr>
         </thead>
         <tbody id="previewBody"></tbody>
@@ -816,17 +824,18 @@ function renderPreviewTable(rows) {
     var safeId = gKeyToSafeId(gKey);
     var gKeyAttr = escHtml(gKey);
     var gKeyJs  = gKey.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    var badgeText = gRows.length + ' token' + (remappable < gRows.length ? ' &middot; ' + remappable + ' rimapp.' : '');
+    var badgeText = gRows.length + ' token';
     var gChkHtml = remappable > 0
       ? '<input type="checkbox" id="' + safeId + '" checked style="cursor:pointer;accent-color:var(--accent)" onclick="toggleGroupCheckbox(event,\'' + gKeyJs + '\')"  >'
       : '';
-    html += '<tr class="group-row" data-group="' + gKeyAttr + '" onclick="toggleAccordion(\'' + gKeyJs + '\')">' +
-      '<td class="chk-cell">' + gChkHtml + '</td>' +
-      '<td colspan="4" class="group-td"><div class="group-cell">' +
-        '<span class="chevron open">&#9654;</span>' +
-        '<span class="group-name">' + gKeyAttr + '</span>' +
-        '<span class="group-badge">' + badgeText + '</span>' +
-      '</div></td></tr>';
+    html += '<tr class="group-row" data-group="' + gKeyAttr + '" onclick="toggleAccordion(\'' + gKeyJs + '\')">'
+      + '<td class="chk-cell">' + gChkHtml + '</td>'
+      + '<td colspan="3" class="group-td"><div class="group-cell">'
+        + '<span class="chevron open">&#9654;</span>'
+        + '<span class="group-name">' + gKeyAttr + '</span>'
+      + '</div></td>'
+      + '<td class="status-cell" style="padding:5px 10px"><span class="group-badge">' + badgeText + '</span></td>'
+      + '</tr>';
     for (var j = 0; j < gRows.length; j++) {
       var r = gRows[j];
       var badgeCls, badgeLabel, targetHtml;
@@ -859,7 +868,7 @@ function renderPreviewTable(rows) {
         chkHtml +
         '<td class="mono">' + escHtml(r.localName) + '</td><td class="arrow">→</td>' +
         targetHtml +
-        '<td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
+        '<td class="status-cell"><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
     }
   }
   tbody.innerHTML = html;
@@ -954,17 +963,18 @@ function renderTextStylesTable(styles) {
     var safeId = 'sgchk_' + gKey.replace(/[^a-zA-Z0-9]/g, '_');
     var gKeyAttr = escHtml(gKey);
     var gKeyJs   = gKey.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    var badgeText = gRows.length + ' stili' + (remappable < gRows.length ? ' &middot; ' + remappable + ' rimapp.' : '');
+    var badgeText = gRows.length + ' stili';
     var gChkHtml = remappable > 0
       ? '<input type="checkbox" id="' + safeId + '" checked style="cursor:pointer;accent-color:var(--accent)" onclick="toggleStyleGroupCheckbox(event,\'' + gKeyJs + '\')">'
       : '';
     html += '<tr class="group-row" data-stgroup="' + gKeyAttr + '" onclick="toggleStyleAccordion(\'' + gKeyJs + '\')">' +
       '<td class="chk-cell">' + gChkHtml + '</td>' +
-      '<td colspan="4" class="group-td"><div class="group-cell">' +
+      '<td colspan="3" class="group-td"><div class="group-cell">' +
         '<span class="chevron open">&#9654;</span>' +
         '<span class="group-name">' + gKeyAttr + '</span>' +
-        '<span class="group-badge">' + badgeText + '</span>' +
-      '</div></td></tr>';
+      '</div></td>' +
+      '<td class="status-cell" style="padding:5px 10px"><span class="group-badge">' + badgeText + '</span></td>' +
+      '</tr>';
     for (var j = 0; j < gRows.length; j++) {
       var r = gRows[j];
       var badgeCls, badgeLabel;
@@ -984,7 +994,7 @@ function renderTextStylesTable(styles) {
         chkHtml +
         '<td class="mono">' + escHtml(r.styleName) + '</td><td class="arrow">→</td>' +
         targetHtml +
-        '<td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
+        '<td class="status-cell"><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
     }
   }
   tbody.innerHTML = html;

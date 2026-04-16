@@ -8,7 +8,7 @@
 //  - Tutto il resto invariato da v4 (alias chain following)
 // =============================================================================
 
-figma.showUI(__html__, { width: 520, height: 680, themeColors: true });
+figma.showUI(__html__, { width: 620, height: 680, themeColors: true });
 
 function postToUI(type, payload) {
   figma.ui.postMessage({ type: type, payload: payload });
