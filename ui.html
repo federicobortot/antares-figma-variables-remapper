@@ -192,8 +192,23 @@ tr.row-hidden { display: none; }
         <div class="label">Stili</div>
         <div class="item" id="tsToggleItem" onclick="toggleIncludeTextStyles()" style="cursor:pointer;user-select:none">
           <input type="checkbox" id="tsCheckbox" style="pointer-events:none;accent-color:var(--accent)">
-          <span class="item-name">Includi stili di testo</span>
+          <span class="item-name">Stili di testo</span>
           <span class="item-count" id="tsCount">…</span>
+        </div>
+        <div class="item" id="csToggleItem" onclick="toggleIncludeColorStyles()" style="cursor:pointer;user-select:none">
+          <input type="checkbox" id="csCheckbox" style="pointer-events:none;accent-color:var(--accent)">
+          <span class="item-name">Stili di colore</span>
+          <span class="item-count" id="csCount">…</span>
+        </div>
+        <div class="item" id="esToggleItem" onclick="toggleIncludeEffectStyles()" style="cursor:pointer;user-select:none">
+          <input type="checkbox" id="esCheckbox" style="pointer-events:none;accent-color:var(--accent)">
+          <span class="item-name">Stili di effetto</span>
+          <span class="item-count" id="esCount">…</span>
+        </div>
+        <div class="item" id="gsToggleItem" onclick="toggleIncludeGridStyles()" style="cursor:pointer;user-select:none">
+          <input type="checkbox" id="gsCheckbox" style="pointer-events:none;accent-color:var(--accent)">
+          <span class="item-name">Stili di layout grid</span>
+          <span class="item-count" id="gsCount">…</span>
         </div>
       </div>
     </div>
@@ -296,6 +311,75 @@ tr.row-hidden { display: none; }
       </div>
     </div>
   </div>
+
+  <div id="colorStylesSection" style="display:none">
+    <div class="preview-card" style="margin-top:10px">
+      <div style="padding:8px 10px 4px; display:flex; align-items:center; justify-content:space-between">
+        <span class="label" style="margin:0; font-size:11px">Stili di colore</span>
+        <span class="group-badge" id="csStyleCount"></span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk-cell"><input type="checkbox" id="chkAllColorStyles" onclick="toggleAllColorStyleRows(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
+              <th>Nome stile</th>
+              <th style="width:16px"></th>
+              <th>Campi rimappabili</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody id="colorStylesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="effectStylesSection" style="display:none">
+    <div class="preview-card" style="margin-top:10px">
+      <div style="padding:8px 10px 4px; display:flex; align-items:center; justify-content:space-between">
+        <span class="label" style="margin:0; font-size:11px">Stili di effetto</span>
+        <span class="group-badge" id="esStyleCount"></span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk-cell"><input type="checkbox" id="chkAllEffectStyles" onclick="toggleAllEffectStyleRows(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
+              <th>Nome stile</th>
+              <th style="width:16px"></th>
+              <th>Campi rimappabili</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody id="effectStylesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="gridStylesSection" style="display:none">
+    <div class="preview-card" style="margin-top:10px">
+      <div style="padding:8px 10px 4px; display:flex; align-items:center; justify-content:space-between">
+        <span class="label" style="margin:0; font-size:11px">Stili di layout grid</span>
+        <span class="group-badge" id="gsStyleCount"></span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk-cell"><input type="checkbox" id="chkAllGridStyles" onclick="toggleAllGridStyleRows(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
+              <th>Nome stile</th>
+              <th style="width:16px"></th>
+              <th>Campi rimappabili</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody id="gridStylesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- STEP 3 -->
@@ -331,7 +415,25 @@ var state = {
   previewTextStyles: [],
   selectedStyleIds: {},
   openStyleGroups: {},
-  styleGroupKeys: []
+  styleGroupKeys: [],
+  includeColorStyles: false,
+  colorStyleCount: 0,
+  previewColorStyles: [],
+  selectedColorStyleIds: {},
+  openColorStyleGroups: {},
+  colorStyleGroupKeys: [],
+  includeEffectStyles: false,
+  effectStyleCount: 0,
+  previewEffectStyles: [],
+  selectedEffectStyleIds: {},
+  openEffectStyleGroups: {},
+  effectStyleGroupKeys: [],
+  includeGridStyles: false,
+  gridStyleCount: 0,
+  previewGridStyles: [],
+  selectedGridStyleIds: {},
+  openGridStyleGroups: {},
+  gridStyleGroupKeys: []
 };
 
 window.onmessage = function(event) {
@@ -341,6 +443,9 @@ window.onmessage = function(event) {
   else if (msg.type === 'LIBRARY_COLLECTIONS')       { onLibraryCollections(msg.payload); }
   else if (msg.type === 'LIBRARY_COLLECTIONS_ERROR') { onLibraryCollectionsError(msg.payload); }
   else if (msg.type === 'TEXT_STYLE_COUNT')          { onTextStyleCount(msg.payload); }
+  else if (msg.type === 'COLOR_STYLE_COUNT')         { onColorStyleCount(msg.payload); }
+  else if (msg.type === 'EFFECT_STYLE_COUNT')        { onEffectStyleCount(msg.payload); }
+  else if (msg.type === 'GRID_STYLE_COUNT')          { onGridStyleCount(msg.payload); }
   else if (msg.type === 'PREVIEW_RESULT')            { onPreviewResult(msg.payload); }
   else if (msg.type === 'EXECUTE_RESULT')            { onExecuteResult(msg.payload); }
   else if (msg.type === 'ERROR')                     { onError(msg.payload); }
@@ -359,6 +464,24 @@ function onTextStyleCount(payload) {
   if (el) { el.textContent = payload.count; }
 }
 
+function onColorStyleCount(payload) {
+  state.colorStyleCount = payload.count;
+  var el = document.getElementById('csCount');
+  if (el) { el.textContent = payload.count; }
+}
+
+function onEffectStyleCount(payload) {
+  state.effectStyleCount = payload.count;
+  var el = document.getElementById('esCount');
+  if (el) { el.textContent = payload.count; }
+}
+
+function onGridStyleCount(payload) {
+  state.gridStyleCount = payload.count;
+  var el = document.getElementById('gsCount');
+  if (el) { el.textContent = payload.count; }
+}
+
 function toggleIncludeTextStyles() {
   state.includeTextStyles = !state.includeTextStyles;
   var chk = document.getElementById('tsCheckbox');
@@ -366,6 +489,42 @@ function toggleIncludeTextStyles() {
   if (chk) { chk.checked = state.includeTextStyles; }
   if (item) {
     if (state.includeTextStyles) { item.classList.add('sel-local'); }
+    else { item.classList.remove('sel-local'); }
+  }
+  updateNext();
+}
+
+function toggleIncludeColorStyles() {
+  state.includeColorStyles = !state.includeColorStyles;
+  var chk = document.getElementById('csCheckbox');
+  var item = document.getElementById('csToggleItem');
+  if (chk) { chk.checked = state.includeColorStyles; }
+  if (item) {
+    if (state.includeColorStyles) { item.classList.add('sel-local'); }
+    else { item.classList.remove('sel-local'); }
+  }
+  updateNext();
+}
+
+function toggleIncludeEffectStyles() {
+  state.includeEffectStyles = !state.includeEffectStyles;
+  var chk = document.getElementById('esCheckbox');
+  var item = document.getElementById('esToggleItem');
+  if (chk) { chk.checked = state.includeEffectStyles; }
+  if (item) {
+    if (state.includeEffectStyles) { item.classList.add('sel-local'); }
+    else { item.classList.remove('sel-local'); }
+  }
+  updateNext();
+}
+
+function toggleIncludeGridStyles() {
+  state.includeGridStyles = !state.includeGridStyles;
+  var chk = document.getElementById('gsCheckbox');
+  var item = document.getElementById('gsToggleItem');
+  if (chk) { chk.checked = state.includeGridStyles; }
+  if (item) {
+    if (state.includeGridStyles) { item.classList.add('sel-local'); }
     else { item.classList.remove('sel-local'); }
   }
   updateNext();
@@ -530,13 +689,14 @@ function updateNext() {
   var btn = document.getElementById('btnNext');
   if (state.step === 1) {
     if (state.mode === 'reverse') {
-      btn.disabled = (state.selectedLocalIds.length === 0);
+      var hasAny = (state.selectedLocalIds.length > 0 || state.includeTextStyles || state.includeColorStyles || state.includeEffectStyles || state.includeGridStyles);
+      btn.disabled = !hasAny;
     } else {
-      var hasLeft = (state.selectedLocalIds.length > 0 || state.includeTextStyles);
+      var hasLeft = (state.selectedLocalIds.length > 0 || state.includeTextStyles || state.includeColorStyles || state.includeEffectStyles || state.includeGridStyles);
       btn.disabled = (!hasLeft || state.selectedLibKeys.length === 0);
     }
   } else if (state.step === 2) {
-    var nSelected = Object.keys(state.selectedRowIds).length + Object.keys(state.selectedStyleIds).length;
+    var nSelected = Object.keys(state.selectedRowIds).length + Object.keys(state.selectedStyleIds).length + Object.keys(state.selectedColorStyleIds).length + Object.keys(state.selectedEffectStyleIds).length + Object.keys(state.selectedGridStyleIds).length;
     btn.disabled = (nSelected === 0);
   }
 }
@@ -546,6 +706,7 @@ function goNext() {
   else if (state.step === 2) { doExecute(); }
 }
 function goBack() { if (state.step === 2) { setStep(1); } }
+function goHome() { setStep(1); }
 
 function switchMode(mode) {
   if (state.mode === mode) { return; }
@@ -553,6 +714,13 @@ function switchMode(mode) {
   state.selectedLocalIds = [];
   state.selectedLibKeys = [];
   state.previewStats = null;
+  state.includeColorStyles = false; state.includeEffectStyles = false; state.includeGridStyles = false;
+  var csChk = document.getElementById('csCheckbox'); if (csChk) { csChk.checked = false; }
+  var csItem = document.getElementById('csToggleItem'); if (csItem) { csItem.classList.remove('sel-local'); }
+  var esChk = document.getElementById('esCheckbox'); if (esChk) { esChk.checked = false; }
+  var esItem = document.getElementById('esToggleItem'); if (esItem) { esItem.classList.remove('sel-local'); }
+  var gsChk = document.getElementById('gsCheckbox'); if (gsChk) { gsChk.checked = false; }
+  var gsItem = document.getElementById('gsToggleItem'); if (gsItem) { gsItem.classList.remove('sel-local'); }
 
   document.getElementById('modeForward').className = 'mode-btn' + (mode === 'forward' ? ' active' : '');
   document.getElementById('modeReverse').className = 'mode-btn' + (mode === 'reverse' ? ' active' : '');
@@ -615,11 +783,18 @@ function setStep(n) {
   btnBack.style.display = (n === 2) ? '' : 'none';
   if (n === 3) {
     btnNext.style.display = 'none'; btnBack.style.display = 'none';
-    btnClose.className = 'btn-success';
+    btnClose.className = 'btn-ghost';
+    btnClose.disabled = true;
+    btnClose.textContent = 'Remapping in corso…';
+    btnClose.onclick = null;
   } else {
     btnNext.style.display = '';
     btnNext.textContent = (n === 1) ? 'Anteprima →' : '⚡ Esegui remapping';
     btnNext.className   = (n === 1) ? 'btn-primary'  : 'btn-danger';
+    btnClose.disabled = false;
+    btnClose.textContent = 'Chiudi';
+    btnClose.className = 'btn-ghost';
+    btnClose.onclick = function() { doClose(); };
     btnClose.style.display = '';
     updateNext();
   }
@@ -636,9 +811,9 @@ function doPreview() {
   setStep(2);
   document.getElementById('btnNext').disabled = true;
   if (isReverse) {
-    send('PREVIEW_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds, includeTextStyles: state.includeTextStyles });
+    send('PREVIEW_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds, includeTextStyles: state.includeTextStyles, includeColorStyles: state.includeColorStyles, includeEffectStyles: state.includeEffectStyles, includeGridStyles: state.includeGridStyles });
   } else {
-    send('PREVIEW_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys, includeTextStyles: state.includeTextStyles });
+    send('PREVIEW_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys, includeTextStyles: state.includeTextStyles, includeColorStyles: state.includeColorStyles, includeEffectStyles: state.includeEffectStyles, includeGridStyles: state.includeGridStyles });
   }
 }
 
@@ -681,6 +856,55 @@ function onPreviewResult(data) {
   } else {
     tsSection.style.display = 'none';
   }
+
+  // Colori
+  state.previewColorStyles = data.colorStyles || [];
+  state.selectedColorStyleIds = {};
+  state.openColorStyleGroups = {};
+  var csSection = document.getElementById('colorStylesSection');
+  if (state.previewColorStyles.length > 0) {
+    for (var cs = 0; cs < state.previewColorStyles.length; cs++) {
+      if (state.previewColorStyles[cs].canRemap) { state.selectedColorStyleIds[state.previewColorStyles[cs].styleId] = true; }
+    }
+    csSection.style.display = '';
+    renderGenericStylesTable(state.previewColorStyles, 'colorStylesBody', 'csStyleCount', 'selectedColorStyleIds', 'openColorStyleGroups', 'colorStyleGroupKeys', 'cstgroup', 'cgchk_', 'toggleColorStyleAccordion', 'toggleColorStyleGroupCheckbox', 'toggleColorStyleRow', 'colorStyleRowClick');
+    syncGenericStyleHeaderCheckbox('chkAllColorStyles', state.previewColorStyles, 'selectedColorStyleIds');
+  } else {
+    csSection.style.display = 'none';
+  }
+
+  // Effetti
+  state.previewEffectStyles = data.effectStyles || [];
+  state.selectedEffectStyleIds = {};
+  state.openEffectStyleGroups = {};
+  var esSection = document.getElementById('effectStylesSection');
+  if (state.previewEffectStyles.length > 0) {
+    for (var es = 0; es < state.previewEffectStyles.length; es++) {
+      if (state.previewEffectStyles[es].canRemap) { state.selectedEffectStyleIds[state.previewEffectStyles[es].styleId] = true; }
+    }
+    esSection.style.display = '';
+    renderGenericStylesTable(state.previewEffectStyles, 'effectStylesBody', 'esStyleCount', 'selectedEffectStyleIds', 'openEffectStyleGroups', 'effectStyleGroupKeys', 'estgroup', 'egchk_', 'toggleEffectStyleAccordion', 'toggleEffectStyleGroupCheckbox', 'toggleEffectStyleRow', 'effectStyleRowClick');
+    syncGenericStyleHeaderCheckbox('chkAllEffectStyles', state.previewEffectStyles, 'selectedEffectStyleIds');
+  } else {
+    esSection.style.display = 'none';
+  }
+
+  // Griglie
+  state.previewGridStyles = data.gridStyles || [];
+  state.selectedGridStyleIds = {};
+  state.openGridStyleGroups = {};
+  var gsSection = document.getElementById('gridStylesSection');
+  if (state.previewGridStyles.length > 0) {
+    for (var gs = 0; gs < state.previewGridStyles.length; gs++) {
+      if (state.previewGridStyles[gs].canRemap) { state.selectedGridStyleIds[state.previewGridStyles[gs].styleId] = true; }
+    }
+    gsSection.style.display = '';
+    renderGenericStylesTable(state.previewGridStyles, 'gridStylesBody', 'gsStyleCount', 'selectedGridStyleIds', 'openGridStyleGroups', 'gridStyleGroupKeys', 'gstgroup', 'ggchk_', 'toggleGridStyleAccordion', 'toggleGridStyleGroupCheckbox', 'toggleGridStyleRow', 'gridStyleRowClick');
+    syncGenericStyleHeaderCheckbox('chkAllGridStyles', state.previewGridStyles, 'selectedGridStyleIds');
+  } else {
+    gsSection.style.display = 'none';
+  }
+
   updateNext();
 }
 
@@ -1118,15 +1342,232 @@ function syncStyleHeaderCheckbox() {
   chkAll.indeterminate = (selected > 0 && selected < total);
 }
 
+/* ── Generic style table (colori / effetti / griglie) ── */
+function renderGenericStylesTable(styles, bodyId, countId, selectedIdsKey, openGroupsKey, groupKeysKey, rowAttr, chkPrefix, accordionFn, groupChkFn, rowChkFn, rowClickFn) {
+  var tbody = document.getElementById(bodyId);
+  if (!styles.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Nessuno stile con variabili associate.</td></tr>';
+    state[groupKeysKey] = [];
+    document.getElementById(countId).textContent = '';
+    return;
+  }
+  var remappableTotal = 0;
+  for (var t = 0; t < styles.length; t++) { if (styles[t].canRemap) { remappableTotal++; } }
+  document.getElementById(countId).textContent = styles.length + ' stili' + (remappableTotal < styles.length ? ' · ' + remappableTotal + ' rimapp.' : '');
+
+  var groups = Object.create(null);
+  var groupOrder = [];
+  for (var i = 0; i < styles.length; i++) {
+    var gKey = getGroupKey(styles[i].styleName);
+    if (!groups[gKey]) { groups[gKey] = []; groupOrder.push(gKey); }
+    groups[gKey].push(styles[i]);
+  }
+  state[groupKeysKey] = groupOrder;
+
+  var html = '';
+  for (var g = 0; g < groupOrder.length; g++) {
+    var gKey = groupOrder[g];
+    var gRows = groups[gKey];
+    var remappable = 0;
+    for (var k = 0; k < gRows.length; k++) { if (gRows[k].canRemap) { remappable++; } }
+    var safeId = chkPrefix + gKey.replace(/[^a-zA-Z0-9]/g, '_');
+    var gKeyAttr = escHtml(gKey);
+    var gKeyJs   = gKey.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var badgeText = gRows.length + ' stili';
+    var gChkHtml = remappable > 0
+      ? '<input type="checkbox" id="' + safeId + '" checked style="cursor:pointer;accent-color:var(--accent)" onclick="' + groupChkFn + '(event,\'' + gKeyJs + '\')">'
+      : '';
+    html += '<tr class="group-row" data-' + rowAttr + '="' + gKeyAttr + '" onclick="' + accordionFn + '(\'' + gKeyJs + '\')">' +
+      '<td class="chk-cell">' + gChkHtml + '</td>' +
+      '<td colspan="3" class="group-td"><div class="group-cell">' +
+        '<span class="chevron open">&#9654;</span>' +
+        '<span class="group-name">' + gKeyAttr + '</span>' +
+      '</div></td>' +
+      '<td class="status-cell" style="padding:5px 10px"><span class="group-badge">' + badgeText + '</span></td>' +
+      '</tr>';
+    for (var j = 0; j < gRows.length; j++) {
+      var r = gRows[j];
+      var badgeCls, badgeLabel;
+      if (r.primaryStatus === 'remap')           { badgeCls = 'remap';   badgeLabel = '✓ Rimappa'; }
+      else if (r.primaryStatus === 'no_match')   { badgeCls = 'nomatch'; badgeLabel = 'No match'; }
+      else if (r.primaryStatus === 'already_local') { badgeCls = 'lib'; badgeLabel = 'Già locale'; }
+      else                                        { badgeCls = 'lib';     badgeLabel = 'Già library'; }
+      var sIdJs = r.styleId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      var rowCheckedCls = (r.canRemap && state[selectedIdsKey][r.styleId]) ? ' row-checked' : '';
+      var chkHtml = r.canRemap
+        ? '<td class="chk-cell"><input type="checkbox"' + (state[selectedIdsKey][r.styleId] ? ' checked' : '') + ' style="cursor:pointer;accent-color:var(--accent)" onclick="' + rowChkFn + '(event,\'' + sIdJs + '\')" ></td>'
+        : '<td class="chk-cell"></td>';
+      var targetHtml = r.remappableCount > 0
+        ? '<td class="target">' + escHtml(r.fieldSummary) + '</td>'
+        : '<td class="target dim">—</td>';
+      var rowCls = 'token-row' + (r.canRemap ? ' selectable' + rowCheckedCls : '');
+      html += '<tr class="' + rowCls + '" data-' + rowAttr + '="' + gKeyAttr + '" onclick="' + rowClickFn + '(event,\'' + sIdJs + '\',this)">' +
+        chkHtml +
+        '<td class="mono">' + escHtml(r.styleName) + '</td><td class="arrow">→</td>' +
+        targetHtml +
+        '<td class="status-cell"><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td></tr>';
+    }
+  }
+  tbody.innerHTML = html;
+  for (var gi = 0; gi < groupOrder.length; gi++) { syncGenericGroupCheckbox(groupOrder[gi], styles, selectedIdsKey, chkPrefix); }
+}
+
+function syncGenericStyleHeaderCheckbox(chkId, styles, selectedIdsKey) {
+  var total = 0; var selected = 0;
+  for (var j = 0; j < styles.length; j++) { if (styles[j].canRemap) { total++; } }
+  selected = Object.keys(state[selectedIdsKey]).length;
+  var chk = document.getElementById(chkId);
+  if (!chk) { return; }
+  chk.checked = (total > 0 && selected === total);
+  chk.indeterminate = (selected > 0 && selected < total);
+}
+
+function syncGenericGroupCheckbox(gKey, styles, selectedIdsKey, chkPrefix) {
+  var total = 0; var selected = 0;
+  for (var i = 0; i < styles.length; i++) {
+    if (getGroupKey(styles[i].styleName) === gKey && styles[i].canRemap) {
+      total++;
+      if (state[selectedIdsKey][styles[i].styleId]) { selected++; }
+    }
+  }
+  var chk = document.getElementById(chkPrefix + gKey.replace(/[^a-zA-Z0-9]/g, '_'));
+  if (!chk) { return; }
+  chk.indeterminate = false;
+  chk.checked = (total > 0 && selected === total);
+  if (selected > 0 && selected < total) { chk.indeterminate = true; }
+}
+
+function makeGenericAccordionFn(rowAttr) {
+  return function(gKey) {
+    var bodyId = rowAttr === 'cstgroup' ? 'colorStylesBody' : rowAttr === 'estgroup' ? 'effectStylesBody' : 'gridStylesBody';
+    var openGroupsKey = rowAttr === 'cstgroup' ? 'openColorStyleGroups' : rowAttr === 'estgroup' ? 'openEffectStyleGroups' : 'openGridStyleGroups';
+    var isOpen = (state[openGroupsKey][gKey] !== false);
+    state[openGroupsKey][gKey] = !isOpen;
+    var nowOpen = !isOpen;
+    var allRows = document.querySelectorAll('#' + bodyId + ' tr');
+    for (var i = 0; i < allRows.length; i++) {
+      if (allRows[i].getAttribute('data-' + rowAttr) !== gKey) { continue; }
+      if (allRows[i].classList.contains('group-row')) {
+        var chev = allRows[i].querySelector('.chevron');
+        if (chev) { chev.className = nowOpen ? 'chevron open' : 'chevron'; }
+      } else {
+        if (nowOpen) { allRows[i].classList.remove('row-hidden'); }
+        else { allRows[i].classList.add('row-hidden'); }
+      }
+    }
+  };
+}
+
+var toggleColorStyleAccordion  = makeGenericAccordionFn('cstgroup');
+var toggleEffectStyleAccordion = makeGenericAccordionFn('estgroup');
+var toggleGridStyleAccordion   = makeGenericAccordionFn('gstgroup');
+
+function makeGenericGroupChkFn(styles_key, selectedIdsKey, chkPrefix, headerChkId, rowAttr) {
+  return function(event, gKey) {
+    event.stopPropagation();
+    var shouldSelect = event.target.checked;
+    var styles = state[styles_key];
+    var bodyId = rowAttr === 'cstgroup' ? 'colorStylesBody' : rowAttr === 'estgroup' ? 'effectStylesBody' : 'gridStylesBody';
+    var allTokenRows = document.querySelectorAll('#' + bodyId + ' tr.token-row');
+    for (var i = 0; i < allTokenRows.length; i++) {
+      if (allTokenRows[i].getAttribute('data-' + rowAttr) !== gKey) { continue; }
+      var rowChk = allTokenRows[i].querySelector('input[type=checkbox]');
+      if (!rowChk) { continue; }
+      rowChk.checked = shouldSelect;
+      if (shouldSelect) { allTokenRows[i].classList.add('row-checked'); }
+      else { allTokenRows[i].classList.remove('row-checked'); }
+    }
+    for (var j = 0; j < styles.length; j++) {
+      if (getGroupKey(styles[j].styleName) === gKey && styles[j].canRemap) {
+        if (shouldSelect) { state[selectedIdsKey][styles[j].styleId] = true; }
+        else { delete state[selectedIdsKey][styles[j].styleId]; }
+      }
+    }
+    event.target.indeterminate = false;
+    syncGenericStyleHeaderCheckbox(headerChkId, styles, selectedIdsKey);
+    updateNext();
+  };
+}
+
+var toggleColorStyleGroupCheckbox  = makeGenericGroupChkFn('previewColorStyles',  'selectedColorStyleIds',  'cgchk_', 'chkAllColorStyles',  'cstgroup');
+var toggleEffectStyleGroupCheckbox = makeGenericGroupChkFn('previewEffectStyles', 'selectedEffectStyleIds', 'egchk_', 'chkAllEffectStyles', 'estgroup');
+var toggleGridStyleGroupCheckbox   = makeGenericGroupChkFn('previewGridStyles',   'selectedGridStyleIds',   'ggchk_', 'chkAllGridStyles',   'gstgroup');
+
+function makeGenericRowClickFn(selectedIdsKey, chkPrefix, styles_key, headerChkId, rowAttr) {
+  return function(event, id, tr) {
+    if (event.target.tagName === 'INPUT') { return; }
+    if (!tr.classList.contains('selectable')) { return; }
+    var chk = tr.querySelector('input[type=checkbox]');
+    if (!chk) { return; }
+    chk.checked = !chk.checked;
+    applyGenericStyleRowSelection(id, chk.checked, tr, selectedIdsKey, chkPrefix, styles_key, headerChkId, rowAttr);
+  };
+}
+
+function makeGenericRowChkFn(selectedIdsKey, chkPrefix, styles_key, headerChkId, rowAttr) {
+  return function(event, id) {
+    event.stopPropagation();
+    var chk = event.target;
+    var tr = chk.closest('tr');
+    applyGenericStyleRowSelection(id, chk.checked, tr, selectedIdsKey, chkPrefix, styles_key, headerChkId, rowAttr);
+  };
+}
+
+function applyGenericStyleRowSelection(id, checked, tr, selectedIdsKey, chkPrefix, styles_key, headerChkId, rowAttr) {
+  var gKey = tr.getAttribute('data-' + rowAttr);
+  if (checked) { state[selectedIdsKey][id] = true; tr.classList.add('row-checked'); }
+  else { delete state[selectedIdsKey][id]; tr.classList.remove('row-checked'); }
+  if (gKey) { syncGenericGroupCheckbox(gKey, state[styles_key], selectedIdsKey, chkPrefix); }
+  syncGenericStyleHeaderCheckbox(headerChkId, state[styles_key], selectedIdsKey);
+  updateNext();
+}
+
+var colorStyleRowClick  = makeGenericRowClickFn('selectedColorStyleIds',  'cgchk_', 'previewColorStyles',  'chkAllColorStyles',  'cstgroup');
+var effectStyleRowClick = makeGenericRowClickFn('selectedEffectStyleIds', 'egchk_', 'previewEffectStyles', 'chkAllEffectStyles', 'estgroup');
+var gridStyleRowClick   = makeGenericRowClickFn('selectedGridStyleIds',   'ggchk_', 'previewGridStyles',   'chkAllGridStyles',   'gstgroup');
+
+var toggleColorStyleRow  = makeGenericRowChkFn('selectedColorStyleIds',  'cgchk_', 'previewColorStyles',  'chkAllColorStyles',  'cstgroup');
+var toggleEffectStyleRow = makeGenericRowChkFn('selectedEffectStyleIds', 'egchk_', 'previewEffectStyles', 'chkAllEffectStyles', 'estgroup');
+var toggleGridStyleRow   = makeGenericRowChkFn('selectedGridStyleIds',   'ggchk_', 'previewGridStyles',   'chkAllGridStyles',   'gstgroup');
+
+function makeToggleAllGenericFn(styles_key, selectedIdsKey, chkPrefix, headerChkId, groupKeysKey) {
+  return function(chkEl) {
+    state[selectedIdsKey] = {};
+    var styles = state[styles_key];
+    if (chkEl.checked) {
+      for (var j = 0; j < styles.length; j++) {
+        if (styles[j].canRemap) { state[selectedIdsKey][styles[j].styleId] = true; }
+      }
+    }
+    var bodyId = groupKeysKey === 'colorStyleGroupKeys' ? 'colorStylesBody' : groupKeysKey === 'effectStyleGroupKeys' ? 'effectStylesBody' : 'gridStylesBody';
+    var allTokenRows = document.querySelectorAll('#' + bodyId + ' tr.token-row');
+    for (var i = 0; i < allTokenRows.length; i++) {
+      var rowChk = allTokenRows[i].querySelector('input[type=checkbox]');
+      if (rowChk) { rowChk.checked = !!chkEl.checked; }
+      if (chkEl.checked) { allTokenRows[i].classList.add('row-checked'); }
+      else { allTokenRows[i].classList.remove('row-checked'); }
+    }
+    for (var k = 0; k < state[groupKeysKey].length; k++) { syncGenericGroupCheckbox(state[groupKeysKey][k], styles, selectedIdsKey, chkPrefix); }
+    updateNext();
+  };
+}
+
+var toggleAllColorStyleRows  = makeToggleAllGenericFn('previewColorStyles',  'selectedColorStyleIds',  'cgchk_', 'chkAllColorStyles',  'colorStyleGroupKeys');
+var toggleAllEffectStyleRows = makeToggleAllGenericFn('previewEffectStyles', 'selectedEffectStyleIds', 'egchk_', 'chkAllEffectStyles', 'effectStyleGroupKeys');
+var toggleAllGridStyleRows   = makeToggleAllGenericFn('previewGridStyles',   'selectedGridStyleIds',   'ggchk_', 'chkAllGridStyles',   'gridStyleGroupKeys');
+
 /* ── Execute ── */
 function doExecute() {
   setStep(3);
   var selectedIds = Object.keys(state.selectedRowIds);
   var selectedStyleIds = Object.keys(state.selectedStyleIds);
+  var selectedColorStyleIds = Object.keys(state.selectedColorStyleIds);
+  var selectedEffectStyleIds = Object.keys(state.selectedEffectStyleIds);
+  var selectedGridStyleIds = Object.keys(state.selectedGridStyleIds);
   if (state.mode === 'reverse') {
-    send('EXECUTE_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds, selectedRowIds: selectedIds, selectedStyleIds: selectedStyleIds });
+    send('EXECUTE_REMAP_REVERSE', { localCollectionIds: state.selectedLocalIds, selectedRowIds: selectedIds, selectedStyleIds: selectedStyleIds, selectedColorStyleIds: selectedColorStyleIds, selectedEffectStyleIds: selectedEffectStyleIds, selectedGridStyleIds: selectedGridStyleIds });
   } else {
-    send('EXECUTE_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys, selectedRowIds: selectedIds, selectedStyleIds: selectedStyleIds });
+    send('EXECUTE_REMAP', { localCollectionIds: state.selectedLocalIds, libraryCollectionKeys: state.selectedLibKeys, selectedRowIds: selectedIds, selectedStyleIds: selectedStyleIds, selectedColorStyleIds: selectedColorStyleIds, selectedEffectStyleIds: selectedEffectStyleIds, selectedGridStyleIds: selectedGridStyleIds });
   }
 }
 
@@ -1162,6 +1603,11 @@ function onExecuteResult(data) {
       errBanner +
     '</div>';
   }
+  var btnClose = document.getElementById('btnClose');
+  btnClose.disabled = false;
+  btnClose.textContent = '← Torna alla home';
+  btnClose.className = 'btn-ghost';
+  btnClose.onclick = function() { goHome(); };
   document.getElementById('resultBox').innerHTML =
     '<div class="result-icon">' + (hasErrors ? '⚠️' : '✅') + '</div>' +
     '<div class="result-title">' + (hasErrors ? 'Completato con avvisi' : 'Remapping completato!') + '</div>' +
@@ -1171,8 +1617,21 @@ function onExecuteResult(data) {
       if (data.remappedVars > 0) {
         lines.push('<span style="color:var(--green);font-weight:700">' + data.remappedVars + ' variabil' + (data.remappedVars === 1 ? 'e' : 'i') + '</span> ora punt' + (data.remappedVars === 1 ? 'a' : 'ano') + ' alle ' + dest + '.');
       }
-      if (data.remappedStyles > 0) {
-        lines.push('<span style="color:var(--green);font-weight:700">' + data.remappedStyles + ' stil' + (data.remappedStyles === 1 ? 'e' : 'i') + ' di testo</span> aggiornato' + (data.remappedStyles === 1 ? '' : 'i') + '.');
+      var ts = data.remappedTextStyles || data.remappedStyles || 0;
+      if (ts > 0) {
+        lines.push('<span style="color:var(--green);font-weight:700">' + ts + ' stil' + (ts === 1 ? 'e' : 'i') + ' di testo</span> aggiornato' + (ts === 1 ? '' : 'i') + '.');
+      }
+      if ((data.remappedColorStyles || 0) > 0) {
+        var n = data.remappedColorStyles;
+        lines.push('<span style="color:var(--green);font-weight:700">' + n + ' stil' + (n === 1 ? 'e' : 'i') + ' di colore</span> aggiornato' + (n === 1 ? '' : 'i') + '.');
+      }
+      if ((data.remappedEffectStyles || 0) > 0) {
+        var n2 = data.remappedEffectStyles;
+        lines.push('<span style="color:var(--green);font-weight:700">' + n2 + ' stil' + (n2 === 1 ? 'e' : 'i') + ' di effetto</span> aggiornato' + (n2 === 1 ? '' : 'i') + '.');
+      }
+      if ((data.remappedGridStyles || 0) > 0) {
+        var n3 = data.remappedGridStyles;
+        lines.push('<span style="color:var(--green);font-weight:700">' + n3 + ' stil' + (n3 === 1 ? 'e' : 'i') + ' di layout grid</span> aggiornato' + (n3 === 1 ? '' : 'i') + '.');
       }
       if (lines.length === 0) { lines.push('<span style="color:var(--muted)">Nessuna modifica effettuata.</span>'); }
       if (data.skipped > 0) { lines.push('<span style="color:var(--muted)">' + data.skipped + ' saltate</span> (no alias o no match).'); }

@@ -88,8 +88,7 @@ function buildFoundationsMap(libraryCollectionKeys, cb, cbErr) {
 // ---------------------------------------------------------------------------
 // Execute stili di testo modalità reverse (sincrono)
 // ---------------------------------------------------------------------------
-function executeTextStylesReverse(selectedStyleIds, maps, remappedVars, skipped, errors, log) {
-  var remappedStyles = 0;
+function executeTextStylesReverse(selectedStyleIds, maps, accumulator, log) {
   var selectedIdSet = buildIdSet(selectedStyleIds);
   var styles = figma.getLocalTextStyles();
   for (var i = 0; i < styles.length; i++) {
@@ -111,14 +110,202 @@ function executeTextStylesReverse(selectedStyleIds, maps, remappedVars, skipped,
           didRemap = true;
         }
       }
-      if (didRemap) { remappedStyles++; } else { skipped++; }
+      if (didRemap) { accumulator.remappedTextStyles++; } else { accumulator.skipped++; }
     } catch(e) {
       log.push('[ERR-STYLE] ' + style.name + ' | ' + String(e));
-      errors.push({ name: style.name, error: String(e) });
+      accumulator.errors.push({ name: style.name, error: String(e) });
     }
   }
-  postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedStyles: remappedStyles, skipped: skipped, errors: errors, log: log });
 }
+
+// ---------------------------------------------------------------------------
+// Execute colori reverse (sincrono)
+// ---------------------------------------------------------------------------
+function executeColorStylesReverse(selectedStyleIds, maps, accumulator, log) {
+  var selectedIdSet = buildIdSet(selectedStyleIds);
+  var styles = figma.getLocalPaintStyles();
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    if (!selectedIdSet[style.id]) { continue; }
+    var didRemap = false;
+    try {
+      var bindings = style.boundVariables && style.boundVariables['color'];
+      if (!bindings) { accumulator.skipped++; continue; }
+      var paintsCopy = JSON.parse(JSON.stringify(style.paints));
+      for (var p = 0; p < paintsCopy.length; p++) {
+        var binding = bindings[p];
+        if (!binding) { continue; }
+        var sourceVar = maps.localVarById[binding.id] || figma.variables.getVariableById(binding.id);
+        if (!sourceVar) { continue; }
+        var localTarget = maps.targetVarByName[sourceVar.name];
+        if (localTarget) {
+          paintsCopy[p] = figma.variables.setBoundVariableForPaint(paintsCopy[p], 'color', localTarget);
+          log.push('[OK-COLOR] ' + style.name + ' | paint[' + p + '] | ' + sourceVar.name + ' → ' + localTarget.name);
+          didRemap = true;
+        }
+      }
+      style.paints = paintsCopy;
+      if (didRemap) { accumulator.remappedColorStyles++; } else { accumulator.skipped++; }
+    } catch(e) {
+      log.push('[ERR-COLOR] ' + style.name + ' | ' + String(e));
+      accumulator.errors.push({ name: style.name, error: String(e) });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Execute effetti reverse (sincrono)
+// ---------------------------------------------------------------------------
+function executeEffectStylesReverse(selectedStyleIds, maps, accumulator, log) {
+  var selectedIdSet = buildIdSet(selectedStyleIds);
+  var styles = figma.getLocalEffectStyles();
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    if (!selectedIdSet[style.id]) { continue; }
+    var didRemap = false;
+    try {
+      var bindings = style.boundVariables && style.boundVariables['effects'];
+      if (!bindings) { accumulator.skipped++; continue; }
+      var effectsCopy = JSON.parse(JSON.stringify(style.effects));
+      for (var e = 0; e < effectsCopy.length; e++) {
+        var binding = bindings[e];
+        if (!binding) { continue; }
+        var sourceVar = maps.localVarById[binding.id] || figma.variables.getVariableById(binding.id);
+        if (!sourceVar) { continue; }
+        var localTarget = maps.targetVarByName[sourceVar.name];
+        if (localTarget) {
+          var effectField = Object.keys(effectsCopy[e].boundVariables || {})[0] || 'color';
+          effectsCopy[e] = figma.variables.setBoundVariableForEffect(effectsCopy[e], effectField, localTarget);
+          log.push('[OK-EFFECT] ' + style.name + ' | effect[' + e + '] | ' + sourceVar.name + ' → ' + localTarget.name);
+          didRemap = true;
+        }
+      }
+      style.effects = effectsCopy;
+      if (didRemap) { accumulator.remappedEffectStyles++; } else { accumulator.skipped++; }
+    } catch(e2) {
+      log.push('[ERR-EFFECT] ' + style.name + ' | ' + String(e2));
+      accumulator.errors.push({ name: style.name, error: String(e2) });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Execute griglie reverse (sincrono)
+// ---------------------------------------------------------------------------
+function executeGridStylesReverse(selectedStyleIds, maps, accumulator, log) {
+  var selectedIdSet = buildIdSet(selectedStyleIds);
+  var styles = figma.getLocalGridStyles();
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    if (!selectedIdSet[style.id]) { continue; }
+    var didRemap = false;
+    try {
+      var bindings = style.boundVariables && style.boundVariables['layoutGrids'];
+      if (!bindings) { accumulator.skipped++; continue; }
+      var gridsCopy = JSON.parse(JSON.stringify(style.layoutGrids));
+      for (var g = 0; g < gridsCopy.length; g++) {
+        var binding = bindings[g];
+        if (!binding) { continue; }
+        var sourceVar = maps.localVarById[binding.id] || figma.variables.getVariableById(binding.id);
+        if (!sourceVar) { continue; }
+        var localTarget = maps.targetVarByName[sourceVar.name];
+        if (localTarget) {
+          var gridField = Object.keys(gridsCopy[g].boundVariables || {})[0] || 'count';
+          gridsCopy[g] = figma.variables.setBoundVariableForLayoutGrid(gridsCopy[g], gridField, localTarget);
+          log.push('[OK-GRID] ' + style.name + ' | grid[' + g + '] | ' + sourceVar.name + ' → ' + localTarget.name);
+          didRemap = true;
+        }
+      }
+      style.layoutGrids = gridsCopy;
+      if (didRemap) { accumulator.remappedGridStyles++; } else { accumulator.skipped++; }
+    } catch(e3) {
+      log.push('[ERR-GRID] ' + style.name + ' | ' + String(e3));
+      accumulator.errors.push({ name: style.name, error: String(e3) });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Analisi colori reverse
+// ---------------------------------------------------------------------------
+function analyzeColorStylesReverse(targetVarByName, localVarById) {
+  var styles = figma.getLocalPaintStyles();
+  var results = [];
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    var bindings = style.boundVariables && style.boundVariables['color'];
+    if (!bindings || !bindings.length) { continue; }
+    var remappable = 0;
+    var alreadyLocal = 0;
+    for (var p = 0; p < bindings.length; p++) {
+      var b = bindings[p];
+      if (!b) { continue; }
+      var sourceVar = localVarById[b.id] || figma.variables.getVariableById(b.id);
+      if (!sourceVar) { continue; }
+      if (targetVarByName[sourceVar.name]) { remappable++; }
+      else if (localVarById[b.id]) { alreadyLocal++; }
+    }
+    var canRemap = remappable > 0;
+    var primaryStatus = canRemap ? 'remap' : (alreadyLocal > 0 ? 'already_local' : 'no_match');
+    results.push({ styleId: style.id, styleName: style.name, canRemap: canRemap, primaryStatus: primaryStatus, remappableCount: remappable, fieldSummary: 'colore' });
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Analisi effetti reverse
+// ---------------------------------------------------------------------------
+function analyzeEffectStylesReverse(targetVarByName, localVarById) {
+  var styles = figma.getLocalEffectStyles();
+  var results = [];
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    var bindings = style.boundVariables && style.boundVariables['effects'];
+    if (!bindings || !bindings.length) { continue; }
+    var remappable = 0;
+    var alreadyLocal = 0;
+    for (var e = 0; e < bindings.length; e++) {
+      var b = bindings[e];
+      if (!b) { continue; }
+      var sourceVar = localVarById[b.id] || figma.variables.getVariableById(b.id);
+      if (!sourceVar) { continue; }
+      if (targetVarByName[sourceVar.name]) { remappable++; }
+      else if (localVarById[b.id]) { alreadyLocal++; }
+    }
+    var canRemap = remappable > 0;
+    var primaryStatus = canRemap ? 'remap' : (alreadyLocal > 0 ? 'already_local' : 'no_match');
+    results.push({ styleId: style.id, styleName: style.name, canRemap: canRemap, primaryStatus: primaryStatus, remappableCount: remappable, fieldSummary: 'effetto' });
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Analisi griglie reverse
+// ---------------------------------------------------------------------------
+function analyzeGridStylesReverse(targetVarByName, localVarById) {
+  var styles = figma.getLocalGridStyles();
+  var results = [];
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    var bindings = style.boundVariables && style.boundVariables['layoutGrids'];
+    if (!bindings || !bindings.length) { continue; }
+    var remappable = 0;
+    var alreadyLocal = 0;
+    for (var g = 0; g < bindings.length; g++) {
+      var b = bindings[g];
+      if (!b) { continue; }
+      var sourceVar = localVarById[b.id] || figma.variables.getVariableById(b.id);
+      if (!sourceVar) { continue; }
+      if (targetVarByName[sourceVar.name]) { remappable++; }
+      else if (localVarById[b.id]) { alreadyLocal++; }
+    }
+    var canRemap = remappable > 0;
+    var primaryStatus = canRemap ? 'remap' : (alreadyLocal > 0 ? 'already_local' : 'no_match');
+    results.push({ styleId: style.id, styleName: style.name, canRemap: canRemap, primaryStatus: primaryStatus, remappableCount: remappable, fieldSummary: 'griglia' });
+  }
+  return results;
+}
+
 function analyzeTextStyles(foundationsMapByName, localVarById) {
   var styles = figma.getLocalTextStyles();
   var results = [];
@@ -133,7 +320,7 @@ function analyzeTextStyles(foundationsMapByName, localVarById) {
       var binding = style.boundVariables[field];
       if (!binding) { continue; }
       allBound++;
-      var targetVar = localVarById[binding.id] || figma.variables.getVariableById(binding.id);
+      var targetVar = localVarById[binding.id]; // solo variabili locali; se library → già rimappata
       if (!targetVar) {
         alreadyLibCount++;
       } else {
@@ -161,6 +348,311 @@ function analyzeTextStyles(foundationsMapByName, localVarById) {
     });
   }
   return results;
+}
+
+// ---------------------------------------------------------------------------
+// Analisi colori forward
+// ---------------------------------------------------------------------------
+function analyzeColorStyles(foundationsMapByName, localVarById) {
+  var styles = figma.getLocalPaintStyles();
+  var results = [];
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    var bindings = style.boundVariables && style.boundVariables['color'];
+    if (!bindings || !bindings.length) { continue; }
+    var remappableFields = [];
+    var alreadyLibCount = 0;
+    for (var p = 0; p < bindings.length; p++) {
+      var b = bindings[p];
+      if (!b) { continue; }
+      var targetVar = localVarById[b.id]; // solo variabili locali
+      if (!targetVar) { alreadyLibCount++; continue; }
+      var foundKey = foundationsMapByName[targetVar.name];
+      if (foundKey) { remappableFields.push({ paintIndex: p, aliasTargetName: targetVar.name, foundationsKey: foundKey }); }
+    }
+    var allBound = bindings.filter(function(x) { return !!x; }).length;
+    if (allBound === 0) { continue; }
+    var canRemap = remappableFields.length > 0;
+    var primaryStatus = canRemap ? 'remap' : (alreadyLibCount === allBound ? 'already_library' : 'no_match');
+    results.push({ styleId: style.id, styleName: style.name, canRemap: canRemap, primaryStatus: primaryStatus, remappableCount: remappableFields.length, fieldSummary: 'colore' });
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Analisi effetti forward
+// ---------------------------------------------------------------------------
+function analyzeEffectStyles(foundationsMapByName, localVarById) {
+  var styles = figma.getLocalEffectStyles();
+  var results = [];
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    var bindings = style.boundVariables && style.boundVariables['effects'];
+    if (!bindings || !bindings.length) { continue; }
+    var remappableFields = [];
+    var alreadyLibCount = 0;
+    for (var e = 0; e < bindings.length; e++) {
+      var b = bindings[e];
+      if (!b) { continue; }
+      var targetVar = localVarById[b.id]; // solo variabili locali
+      if (!targetVar) { alreadyLibCount++; continue; }
+      var foundKey = foundationsMapByName[targetVar.name];
+      if (foundKey) { remappableFields.push({ effectIndex: e, aliasTargetName: targetVar.name, foundationsKey: foundKey }); }
+    }
+    var allBound = bindings.filter(function(x) { return !!x; }).length;
+    if (allBound === 0) { continue; }
+    var canRemap = remappableFields.length > 0;
+    var primaryStatus = canRemap ? 'remap' : (alreadyLibCount === allBound ? 'already_library' : 'no_match');
+    results.push({ styleId: style.id, styleName: style.name, canRemap: canRemap, primaryStatus: primaryStatus, remappableCount: remappableFields.length, fieldSummary: 'effetto' });
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Analisi griglie forward
+// ---------------------------------------------------------------------------
+function analyzeGridStyles(foundationsMapByName, localVarById) {
+  var styles = figma.getLocalGridStyles();
+  var results = [];
+  for (var i = 0; i < styles.length; i++) {
+    var style = styles[i];
+    var bindings = style.boundVariables && style.boundVariables['layoutGrids'];
+    if (!bindings || !bindings.length) { continue; }
+    var remappableFields = [];
+    var alreadyLibCount = 0;
+    for (var g = 0; g < bindings.length; g++) {
+      var b = bindings[g];
+      if (!b) { continue; }
+      var targetVar = localVarById[b.id]; // solo variabili locali
+      if (!targetVar) { alreadyLibCount++; continue; }
+      var foundKey = foundationsMapByName[targetVar.name];
+      if (foundKey) { remappableFields.push({ gridIndex: g, aliasTargetName: targetVar.name, foundationsKey: foundKey }); }
+    }
+    var allBound = bindings.filter(function(x) { return !!x; }).length;
+    if (allBound === 0) { continue; }
+    var canRemap = remappableFields.length > 0;
+    var primaryStatus = canRemap ? 'remap' : (alreadyLibCount === allBound ? 'already_library' : 'no_match');
+    results.push({ styleId: style.id, styleName: style.name, canRemap: canRemap, primaryStatus: primaryStatus, remappableCount: remappableFields.length, fieldSummary: 'griglia' });
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Execute colori forward (async)
+// ---------------------------------------------------------------------------
+function executeColorStyles(selectedStyleIds, foundationsMapByName, localVarById, keyCache, accumulator, log, callback) {
+  var selectedIdSet = buildIdSet(selectedStyleIds);
+  var styles = figma.getLocalPaintStyles();
+  var tasks = [];
+  for (var i = 0; i < styles.length; i++) {
+    if (!selectedIdSet[styles[i].id]) { continue; }
+    var style = styles[i];
+    var bindings = style.boundVariables && style.boundVariables['color'];
+    if (!bindings) { accumulator.skipped++; continue; }
+    var fieldsToRemap = [];
+    for (var p = 0; p < bindings.length; p++) {
+      var b = bindings[p];
+      if (!b) { continue; }
+      var targetVar = localVarById[b.id] || figma.variables.getVariableById(b.id);
+      if (!targetVar) { continue; }
+      var foundKey = foundationsMapByName[targetVar.name];
+      if (foundKey) { fieldsToRemap.push({ paintIndex: p, foundationsKey: foundKey, prevName: targetVar.name }); }
+    }
+    if (fieldsToRemap.length > 0) { tasks.push({ style: style, fields: fieldsToRemap }); }
+    else { accumulator.skipped++; }
+  }
+
+  var taskIndex = 0;
+  function processNext() {
+    if (taskIndex >= tasks.length) { callback(); return; }
+    var task = tasks[taskIndex++];
+    var uniqueKeys = createSafeMap();
+    for (var f = 0; f < task.fields.length; f++) { uniqueKeys[task.fields[f].foundationsKey] = true; }
+    var keysToFetch = Object.keys(uniqueKeys);
+    var fetchedVars = createSafeMap();
+    var fetchIndex = 0;
+    function fetchNextKey() {
+      if (fetchIndex >= keysToFetch.length) {
+        try {
+          var paintsCopy = JSON.parse(JSON.stringify(task.style.paints));
+          for (var f2 = 0; f2 < task.fields.length; f2++) {
+            var fd = task.fields[f2];
+            var importedVar = fetchedVars[fd.foundationsKey];
+            if (importedVar) {
+              paintsCopy[fd.paintIndex] = figma.variables.setBoundVariableForPaint(paintsCopy[fd.paintIndex], 'color', importedVar);
+              log.push('[OK-COLOR] ' + task.style.name + ' | paint[' + fd.paintIndex + '] | ' + fd.prevName + ' → ' + importedVar.name);
+            } else {
+              log.push('[SKIP-COLOR-NOIMPORT] ' + task.style.name + ' | paint[' + fd.paintIndex + '] | key:' + fd.foundationsKey);
+            }
+          }
+          task.style.paints = paintsCopy;
+          accumulator.remappedColorStyles++;
+        } catch(e) {
+          log.push('[ERR-COLOR] ' + task.style.name + ' | ' + String(e));
+          accumulator.errors.push({ name: task.style.name, error: String(e) });
+        }
+        processNext(); return;
+      }
+      var key = keysToFetch[fetchIndex++];
+      if (keyCache[key]) { fetchedVars[key] = keyCache[key]; fetchNextKey(); return; }
+      figma.variables.importVariableByKeyAsync(key)
+        .then(function(v) { keyCache[key] = v; fetchedVars[key] = v; fetchNextKey(); })
+        .catch(function(err) {
+          log.push('[ERR-IMPORT-COLOR] key:' + key + ' | ' + String(err));
+          accumulator.errors.push({ name: task.style.name, error: String(err) });
+          fetchNextKey();
+        });
+    }
+    fetchNextKey();
+  }
+  processNext();
+}
+
+// ---------------------------------------------------------------------------
+// Execute effetti forward (async)
+// ---------------------------------------------------------------------------
+function executeEffectStyles(selectedStyleIds, foundationsMapByName, localVarById, keyCache, accumulator, log, callback) {
+  var selectedIdSet = buildIdSet(selectedStyleIds);
+  var styles = figma.getLocalEffectStyles();
+  var tasks = [];
+  for (var i = 0; i < styles.length; i++) {
+    if (!selectedIdSet[styles[i].id]) { continue; }
+    var style = styles[i];
+    var bindings = style.boundVariables && style.boundVariables['effects'];
+    if (!bindings) { accumulator.skipped++; continue; }
+    var fieldsToRemap = [];
+    for (var e = 0; e < bindings.length; e++) {
+      var b = bindings[e];
+      if (!b) { continue; }
+      var targetVar = localVarById[b.id] || figma.variables.getVariableById(b.id);
+      if (!targetVar) { continue; }
+      var foundKey = foundationsMapByName[targetVar.name];
+      // Determina il campo bindable dell'effetto (es. 'color', 'radius'…)
+      var effectField = (style.effects[e] && style.effects[e].boundVariables)
+        ? (Object.keys(style.effects[e].boundVariables)[0] || 'color') : 'color';
+      if (foundKey) { fieldsToRemap.push({ effectIndex: e, effectField: effectField, foundationsKey: foundKey, prevName: targetVar.name }); }
+    }
+    if (fieldsToRemap.length > 0) { tasks.push({ style: style, fields: fieldsToRemap }); }
+    else { accumulator.skipped++; }
+  }
+
+  var taskIndex = 0;
+  function processNextE() {
+    if (taskIndex >= tasks.length) { callback(); return; }
+    var task = tasks[taskIndex++];
+    var uniqueKeys = createSafeMap();
+    for (var f = 0; f < task.fields.length; f++) { uniqueKeys[task.fields[f].foundationsKey] = true; }
+    var keysToFetch = Object.keys(uniqueKeys);
+    var fetchedVars = createSafeMap();
+    var fetchIndex = 0;
+    function fetchNextKeyE() {
+      if (fetchIndex >= keysToFetch.length) {
+        try {
+          var effectsCopy = JSON.parse(JSON.stringify(task.style.effects));
+          for (var f2 = 0; f2 < task.fields.length; f2++) {
+            var fd = task.fields[f2];
+            var importedVar = fetchedVars[fd.foundationsKey];
+            if (importedVar) {
+              effectsCopy[fd.effectIndex] = figma.variables.setBoundVariableForEffect(effectsCopy[fd.effectIndex], fd.effectField, importedVar);
+              log.push('[OK-EFFECT] ' + task.style.name + ' | effect[' + fd.effectIndex + '] | ' + fd.prevName + ' → ' + importedVar.name);
+            } else {
+              log.push('[SKIP-EFFECT-NOIMPORT] ' + task.style.name + ' | effect[' + fd.effectIndex + '] | key:' + fd.foundationsKey);
+            }
+          }
+          task.style.effects = effectsCopy;
+          accumulator.remappedEffectStyles++;
+        } catch(e) {
+          log.push('[ERR-EFFECT] ' + task.style.name + ' | ' + String(e));
+          accumulator.errors.push({ name: task.style.name, error: String(e) });
+        }
+        processNextE(); return;
+      }
+      var key = keysToFetch[fetchIndex++];
+      if (keyCache[key]) { fetchedVars[key] = keyCache[key]; fetchNextKeyE(); return; }
+      figma.variables.importVariableByKeyAsync(key)
+        .then(function(v) { keyCache[key] = v; fetchedVars[key] = v; fetchNextKeyE(); })
+        .catch(function(err) {
+          log.push('[ERR-IMPORT-EFFECT] key:' + key + ' | ' + String(err));
+          accumulator.errors.push({ name: task.style.name, error: String(err) });
+          fetchNextKeyE();
+        });
+    }
+    fetchNextKeyE();
+  }
+  processNextE();
+}
+
+// ---------------------------------------------------------------------------
+// Execute griglie forward (async)
+// ---------------------------------------------------------------------------
+function executeGridStyles(selectedStyleIds, foundationsMapByName, localVarById, keyCache, accumulator, log, callback) {
+  var selectedIdSet = buildIdSet(selectedStyleIds);
+  var styles = figma.getLocalGridStyles();
+  var tasks = [];
+  for (var i = 0; i < styles.length; i++) {
+    if (!selectedIdSet[styles[i].id]) { continue; }
+    var style = styles[i];
+    var bindings = style.boundVariables && style.boundVariables['layoutGrids'];
+    if (!bindings) { accumulator.skipped++; continue; }
+    var fieldsToRemap = [];
+    for (var g = 0; g < bindings.length; g++) {
+      var b = bindings[g];
+      if (!b) { continue; }
+      var targetVar = localVarById[b.id] || figma.variables.getVariableById(b.id);
+      if (!targetVar) { continue; }
+      var foundKey = foundationsMapByName[targetVar.name];
+      var gridField = (style.layoutGrids[g] && style.layoutGrids[g].boundVariables)
+        ? (Object.keys(style.layoutGrids[g].boundVariables)[0] || 'count') : 'count';
+      if (foundKey) { fieldsToRemap.push({ gridIndex: g, gridField: gridField, foundationsKey: foundKey, prevName: targetVar.name }); }
+    }
+    if (fieldsToRemap.length > 0) { tasks.push({ style: style, fields: fieldsToRemap }); }
+    else { accumulator.skipped++; }
+  }
+
+  var taskIndex = 0;
+  function processNextG() {
+    if (taskIndex >= tasks.length) { callback(); return; }
+    var task = tasks[taskIndex++];
+    var uniqueKeys = createSafeMap();
+    for (var f = 0; f < task.fields.length; f++) { uniqueKeys[task.fields[f].foundationsKey] = true; }
+    var keysToFetch = Object.keys(uniqueKeys);
+    var fetchedVars = createSafeMap();
+    var fetchIndex = 0;
+    function fetchNextKeyG() {
+      if (fetchIndex >= keysToFetch.length) {
+        try {
+          var gridsCopy = JSON.parse(JSON.stringify(task.style.layoutGrids));
+          for (var f2 = 0; f2 < task.fields.length; f2++) {
+            var fd = task.fields[f2];
+            var importedVar = fetchedVars[fd.foundationsKey];
+            if (importedVar) {
+              gridsCopy[fd.gridIndex] = figma.variables.setBoundVariableForLayoutGrid(gridsCopy[fd.gridIndex], fd.gridField, importedVar);
+              log.push('[OK-GRID] ' + task.style.name + ' | grid[' + fd.gridIndex + '] | ' + fd.prevName + ' → ' + importedVar.name);
+            } else {
+              log.push('[SKIP-GRID-NOIMPORT] ' + task.style.name + ' | grid[' + fd.gridIndex + '] | key:' + fd.foundationsKey);
+            }
+          }
+          task.style.layoutGrids = gridsCopy;
+          accumulator.remappedGridStyles++;
+        } catch(e) {
+          log.push('[ERR-GRID] ' + task.style.name + ' | ' + String(e));
+          accumulator.errors.push({ name: task.style.name, error: String(e) });
+        }
+        processNextG(); return;
+      }
+      var key = keysToFetch[fetchIndex++];
+      if (keyCache[key]) { fetchedVars[key] = keyCache[key]; fetchNextKeyG(); return; }
+      figma.variables.importVariableByKeyAsync(key)
+        .then(function(v) { keyCache[key] = v; fetchedVars[key] = v; fetchNextKeyG(); })
+        .catch(function(err) {
+          log.push('[ERR-IMPORT-GRID] key:' + key + ' | ' + String(err));
+          accumulator.errors.push({ name: task.style.name, error: String(err) });
+          fetchNextKeyG();
+        });
+    }
+    fetchNextKeyG();
+  }
+  processNextG();
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +705,10 @@ figma.ui.onmessage = function(msg) {
 
 function handleInit() {
   postToUI('LOCAL_COLLECTIONS', getLocalCollectionsSummary());
-  postToUI('TEXT_STYLE_COUNT', { count: figma.getLocalTextStyles().length });
+  postToUI('TEXT_STYLE_COUNT',   { count: figma.getLocalTextStyles().length });
+  postToUI('COLOR_STYLE_COUNT',  { count: figma.getLocalPaintStyles().length });
+  postToUI('EFFECT_STYLE_COUNT', { count: figma.getLocalEffectStyles().length });
+  postToUI('GRID_STYLE_COUNT',   { count: figma.getLocalGridStyles().length });
   figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()
     .then(function(libCollections) {
       var mapped = [];
@@ -277,7 +772,13 @@ function handlePreviewRemap(payload) {
 
       var textStyles = null;
       if (payload.includeTextStyles) { textStyles = analyzeTextStyles(foundationsMapByName, localVarById); }
-      postToUI('PREVIEW_RESULT', { rows: rows, stats: stats, textStyles: textStyles });
+      var colorStyles = null;
+      if (payload.includeColorStyles) { colorStyles = analyzeColorStyles(foundationsMapByName, localVarById); }
+      var effectStyles = null;
+      if (payload.includeEffectStyles) { effectStyles = analyzeEffectStyles(foundationsMapByName, localVarById); }
+      var gridStyles = null;
+      if (payload.includeGridStyles) { gridStyles = analyzeGridStyles(foundationsMapByName, localVarById); }
+      postToUI('PREVIEW_RESULT', { rows: rows, stats: stats, textStyles: textStyles, colorStyles: colorStyles, effectStyles: effectStyles, gridStyles: gridStyles });
     },
     function(err) { postToUI('ERROR', err); }
   );
@@ -320,11 +821,24 @@ function handleExecuteRemap(payload) {
 
       function processNext(index) {
         if (index >= tasks.length) {
-          // ── stili di testo ──
+          // ── catena stili ──
+          var acc = { remappedTextStyles: 0, remappedColorStyles: 0, remappedEffectStyles: 0, remappedGridStyles: 0, skipped: skipped, errors: errors };
+          function afterTextStyles() {
+            executeColorStyles(payload.selectedColorStyleIds || [], foundationsMapByName, localVarById, keyCache, acc, log, afterColorStyles);
+          }
+          function afterColorStyles() {
+            executeEffectStyles(payload.selectedEffectStyleIds || [], foundationsMapByName, localVarById, keyCache, acc, log, afterEffectStyles);
+          }
+          function afterEffectStyles() {
+            executeGridStyles(payload.selectedGridStyleIds || [], foundationsMapByName, localVarById, keyCache, acc, log, afterGridStyles);
+          }
+          function afterGridStyles() {
+            postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedTextStyles: acc.remappedTextStyles, remappedColorStyles: acc.remappedColorStyles, remappedEffectStyles: acc.remappedEffectStyles, remappedGridStyles: acc.remappedGridStyles, skipped: acc.skipped, errors: acc.errors, total: analysis.length, log: log });
+          }
           if (payload.selectedStyleIds && payload.selectedStyleIds.length > 0) {
-            executeTextStyles(payload.selectedStyleIds, foundationsMapByName, localVarById, keyCache, remappedVars, skipped, errors, log);
+            executeTextStyles(payload.selectedStyleIds, foundationsMapByName, localVarById, keyCache, acc, log, afterTextStyles);
           } else {
-            postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedStyles: 0, skipped: skipped, errors: errors, total: analysis.length, log: log });
+            afterTextStyles();
           }
           return;
         }
@@ -396,8 +910,7 @@ function handleExecuteRemap(payload) {
   );
 }
 
-function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById, keyCache, remappedVars, skipped, errors, log) {
-  var remappedStyles = 0;
+function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById, keyCache, acc, log, callback) {
   var selectedIdSet = buildIdSet(selectedStyleIds);
   var styles = figma.getLocalTextStyles();
   var tasks = [];
@@ -416,14 +929,14 @@ function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById,
       if (foundKey) { fieldsToRemap.push({ field: field, foundationsKey: foundKey, prevName: targetVar.name }); }
     }
     if (fieldsToRemap.length > 0) { tasks.push({ style: style, fields: fieldsToRemap }); }
-    else { skipped++; }
+    else { acc.skipped++; }
   }
 
   var taskIndex = 0;
 
   function processStyleNext() {
     if (taskIndex >= tasks.length) {
-      postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedStyles: remappedStyles, skipped: skipped, errors: errors, log: log });
+      callback();
       return;
     }
     var task = tasks[taskIndex];
@@ -449,10 +962,10 @@ function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById,
               log.push('[SKIP-STYLE-NOIMPORT] ' + task.style.name + ' | ' + fd.field + ' | key:' + fd.foundationsKey);
             }
           }
-          remappedStyles++;
+          acc.remappedTextStyles++;
         } catch(e) {
           log.push('[ERR-STYLE] ' + task.style.name + ' | ' + String(e));
-          errors.push({ name: task.style.name, error: String(e) });
+          acc.errors.push({ name: task.style.name, error: String(e) });
         }
         processStyleNext();
         return;
@@ -472,7 +985,7 @@ function executeTextStyles(selectedStyleIds, foundationsMapByName, localVarById,
         })
         .catch(function(err) {
           log.push('[ERR-IMPORT-STYLE] key:' + key + ' | ' + String(err));
-          errors.push({ name: task.style.name, error: String(err) });
+          acc.errors.push({ name: task.style.name, error: String(err) });
           fetchNextKey();
         });
     }
@@ -622,7 +1135,13 @@ function handlePreviewRemapReverse(payload) {
 
   var textStyles = null;
   if (payload.includeTextStyles) { textStyles = analyzeTextStylesReverse(maps.targetVarByName, maps.localVarById); }
-  postToUI('PREVIEW_RESULT', { rows: rows, stats: stats, textStyles: textStyles });
+  var colorStyles = null;
+  if (payload.includeColorStyles) { colorStyles = analyzeColorStylesReverse(maps.targetVarByName, maps.localVarById); }
+  var effectStyles = null;
+  if (payload.includeEffectStyles) { effectStyles = analyzeEffectStylesReverse(maps.targetVarByName, maps.localVarById); }
+  var gridStyles = null;
+  if (payload.includeGridStyles) { gridStyles = analyzeGridStylesReverse(maps.targetVarByName, maps.localVarById); }
+  postToUI('PREVIEW_RESULT', { rows: rows, stats: stats, textStyles: textStyles, colorStyles: colorStyles, effectStyles: effectStyles, gridStyles: gridStyles });
 }
 
 function handleExecuteRemapReverse(payload) {
@@ -669,9 +1188,18 @@ function handleExecuteRemapReverse(payload) {
     }
   }
 
+  var acc = { remappedTextStyles: 0, remappedColorStyles: 0, remappedEffectStyles: 0, remappedGridStyles: 0, skipped: skipped, errors: errors };
   if (payload.selectedStyleIds && payload.selectedStyleIds.length > 0) {
-    executeTextStylesReverse(payload.selectedStyleIds, maps, remappedVars, skipped, errors, log);
-  } else {
-    postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedStyles: 0, skipped: skipped, errors: errors, total: analysis.length, log: log });
+    executeTextStylesReverse(payload.selectedStyleIds, maps, acc, log);
   }
+  if (payload.selectedColorStyleIds && payload.selectedColorStyleIds.length > 0) {
+    executeColorStylesReverse(payload.selectedColorStyleIds, maps, acc, log);
+  }
+  if (payload.selectedEffectStyleIds && payload.selectedEffectStyleIds.length > 0) {
+    executeEffectStylesReverse(payload.selectedEffectStyleIds, maps, acc, log);
+  }
+  if (payload.selectedGridStyleIds && payload.selectedGridStyleIds.length > 0) {
+    executeGridStylesReverse(payload.selectedGridStyleIds, maps, acc, log);
+  }
+  postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedTextStyles: acc.remappedTextStyles, remappedColorStyles: acc.remappedColorStyles, remappedEffectStyles: acc.remappedEffectStyles, remappedGridStyles: acc.remappedGridStyles, skipped: acc.skipped, errors: acc.errors, total: analysis.length, log: log });
 }
