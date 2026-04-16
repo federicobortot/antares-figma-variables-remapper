@@ -188,27 +188,30 @@ tr.row-hidden { display: none; }
           <div class="loader"><div class="spin"></div>Caricamento…</div>
         </div>
       </div>
-      <div>
+      <!-- stylesSection vive qui in forward; in reverse viene spostato in step1Reverse via JS -->
+      <div id="stylesSection" style="margin-top:4px">
         <div class="label">Stili</div>
-        <div class="item" id="tsToggleItem" onclick="toggleIncludeTextStyles()" style="cursor:pointer;user-select:none">
-          <input type="checkbox" id="tsCheckbox" style="pointer-events:none;accent-color:var(--accent)">
-          <span class="item-name">Stili di testo</span>
-          <span class="item-count" id="tsCount">…</span>
-        </div>
-        <div class="item" id="csToggleItem" onclick="toggleIncludeColorStyles()" style="cursor:pointer;user-select:none">
-          <input type="checkbox" id="csCheckbox" style="pointer-events:none;accent-color:var(--accent)">
-          <span class="item-name">Stili di colore</span>
-          <span class="item-count" id="csCount">…</span>
-        </div>
-        <div class="item" id="esToggleItem" onclick="toggleIncludeEffectStyles()" style="cursor:pointer;user-select:none">
-          <input type="checkbox" id="esCheckbox" style="pointer-events:none;accent-color:var(--accent)">
-          <span class="item-name">Stili di effetto</span>
-          <span class="item-count" id="esCount">…</span>
-        </div>
-        <div class="item" id="gsToggleItem" onclick="toggleIncludeGridStyles()" style="cursor:pointer;user-select:none">
-          <input type="checkbox" id="gsCheckbox" style="pointer-events:none;accent-color:var(--accent)">
-          <span class="item-name">Stili di layout grid</span>
-          <span class="item-count" id="gsCount">…</span>
+        <div class="item-list" style="display:flex;flex-direction:column;gap:4px">
+          <div class="item" id="tsToggleItem" onclick="toggleIncludeTextStyles()" style="cursor:pointer;user-select:none">
+            <input type="checkbox" id="tsCheckbox" style="pointer-events:none;accent-color:var(--accent)">
+            <span class="item-name">Stili di testo</span>
+            <span class="item-count" id="tsCount">…</span>
+          </div>
+          <div class="item" id="csToggleItem" onclick="toggleIncludeColorStyles()" style="cursor:pointer;user-select:none">
+            <input type="checkbox" id="csCheckbox" style="pointer-events:none;accent-color:var(--accent)">
+            <span class="item-name">Stili di colore</span>
+            <span class="item-count" id="csCount">…</span>
+          </div>
+          <div class="item" id="esToggleItem" onclick="toggleIncludeEffectStyles()" style="cursor:pointer;user-select:none">
+            <input type="checkbox" id="esCheckbox" style="pointer-events:none;accent-color:var(--accent)">
+            <span class="item-name">Stili di effetto</span>
+            <span class="item-count" id="esCount">…</span>
+          </div>
+          <div class="item" id="gsToggleItem" onclick="toggleIncludeGridStyles()" style="cursor:pointer;user-select:none">
+            <input type="checkbox" id="gsCheckbox" style="pointer-events:none;accent-color:var(--accent)">
+            <span class="item-name">Stili di layout grid</span>
+            <span class="item-count" id="gsCount">…</span>
+          </div>
         </div>
       </div>
     </div>
@@ -732,6 +735,13 @@ function switchMode(mode) {
   var isForward = (mode === 'forward');
   document.getElementById('step1Forward').style.display = isForward ? 'flex' : 'none';
   document.getElementById('step1Reverse').style.display = isForward ? 'none' : 'flex';
+  // Sposta stylesSection nel contenitore corretto
+  var stylesSec = document.getElementById('stylesSection');
+  if (isForward) {
+    document.querySelector('.col-left').appendChild(stylesSec);
+  } else {
+    document.getElementById('step1Reverse').appendChild(stylesSec);
+  }
 
   var n1 = document.getElementById('notice1');
   n1.className = 'notice';
