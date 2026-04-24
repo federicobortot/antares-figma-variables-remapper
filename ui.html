@@ -31,6 +31,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 
 .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 7px; display: flex; align-items: center; gap: 6px; }
 .label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.label[style*="--label-line:none"]::after { display: none; }
 .label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
 .label-row .label { margin-bottom: 0; flex: 1; }
 .label-row .label::after { display: none; }
@@ -38,15 +39,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
 .select-all-btn:hover { color: #c084fc; }
 
 /* Items — shared style for both local and library */
-.item-list { display: flex; flex-direction: column; gap: 4px; }
-.item { display: flex; align-items: center; gap: 9px; padding: 8px 11px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: border-color 0.12s; user-select: none; }
-.item:hover { border-color: rgba(255,255,255,0.15); }
-.item input { width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; pointer-events: none; }
-.item.sel-local   { border-color: var(--accent);  background: rgba(233,69,96,0.10); }
-.item.sel-lib     { border-color: var(--purple);  background: rgba(168,85,247,0.10); }
+.item-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.item { display: flex; align-items: center; gap: 7px; padding: 5px 9px; min-height: 32px; background: var(--surface); border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; user-select: none; }
+.item:last-child { border-bottom: none; }
+.item:hover { background: var(--surface2); }
+.item input { width: 12px; height: 12px; cursor: pointer; flex-shrink: 0; pointer-events: none; }
+.item.sel-local   { background: rgba(233,69,96,0.10); box-shadow: inset 3px 0 0 var(--accent); }
+.item.sel-lib     { background: rgba(168,85,247,0.10); box-shadow: inset 3px 0 0 var(--purple); }
 .item input[type="checkbox"] { accent-color: var(--accent); }
 .item.sel-lib input[type="checkbox"] { accent-color: var(--purple); }
-.item-name { flex: 1; font-weight: 600; }
+.item-name { flex: 1; font-weight: 500; }
 .item-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
 .item-count { font-size: 10px; color: var(--muted); background: var(--surface2); padding: 2px 6px; border-radius: 20px; flex-shrink: 0; }
 
@@ -114,6 +116,9 @@ tbody tr.row-checked:hover td.status-cell { background: #332134; }
 .spin { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--accent); border-radius: 50%; animation: rot 0.7s linear infinite; flex-shrink: 0; }
 @keyframes rot { to { transform: rotate(360deg); } }
 .empty { color: var(--muted); font-size: 11px; text-align: center; padding: 10px; font-style: italic; }
+.lib-select { width: 100%; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; font-size: 12px; font-family: var(--font); cursor: pointer; outline: none; -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237c7c9a'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+.lib-select:focus { border-color: rgba(168,85,247,0.5); }
+.lib-select option { background: var(--surface2); color: var(--text); }
 
 .footer { padding: 10px 18px; border-top: 1px solid var(--border); display: flex; gap: 7px; flex-shrink: 0; }
 .footer button { flex: 1; padding: 9px 12px; border-radius: var(--radius); border: none; font-size: 12px; font-weight: 700; cursor: pointer; transition: opacity 0.12s, transform 0.1s; font-family: var(--font); }
@@ -182,15 +187,15 @@ tr.row-hidden { display: none; }
     <!-- sinistra: variabili locali -->
     <div class="col-left">
       <div>
-        <div class="label">Variabili locali</div>
+        <div class="label" style="--label-line:none">Variabili locali</div>
         <div class="item-list" id="localList">
           <div class="loader"><div class="spin"></div>Caricamento…</div>
         </div>
       </div>
       <!-- stylesSection vive qui in forward; in reverse viene spostato in step1Reverse via JS -->
       <div id="stylesSection" style="margin-top:4px">
-        <div class="label">Stili</div>
-        <div class="item-list" style="display:flex;flex-direction:column;gap:4px">
+        <div class="label" style="--label-line:none">Stili</div>
+        <div class="item-list">
           <div class="item" id="tsToggleItem" onclick="toggleIncludeTextStyles()" style="cursor:pointer;user-select:none">
             <input type="checkbox" id="tsCheckbox" style="pointer-events:none;accent-color:var(--accent)">
             <span class="item-name">Stili di testo</span>
@@ -222,16 +227,17 @@ tr.row-hidden { display: none; }
       <div>
         <div class="label-row">
           <div class="label">Libreria target</div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:5px">
-          <button class="btn" id="reloadLibBtn" onclick="reloadLibraries()" style="font-size:10px;padding:4px 9px">&#8635; Ricarica</button>
+          <button class="btn" id="reloadLibBtn" onclick="reloadLibraries()" style="font-size:10px;padding:3px 8px;flex-shrink:0">&#8635; Ricarica</button>
         </div>
         <div id="libList">
           <div class="loader"><div class="spin"></div>Caricamento…</div>
         </div>
         <div id="collectionsBlock" style="display:none;margin-top:10px">
-          <div class="label">Collezioni</div>
-          <div class="item-list" id="collectionsList"></div>
+          <div class="label-row">
+            <div class="label" style="margin-bottom:0">Collezioni</div>
+            <button class="select-all-btn" id="toggleAllCollBtn" onclick="toggleAllCollections()" style="margin-left:6px">Nessuna</button>
+          </div>
+          <div class="item-list" id="collectionsList" style="margin-top:7px"></div>
         </div>
       </div>
     </div>
@@ -596,7 +602,7 @@ function onLibraryCollections(collections) {
     return;
   }
 
-  // Raggruppa per libraryName — mostra una riga per libreria (single-select)
+  // Raggruppa per libraryName
   var groups = Object.create(null);
   var groupOrder = [];
   for (var i = 0; i < collections.length; i++) {
@@ -605,37 +611,29 @@ function onLibraryCollections(collections) {
     groups[libName]++;
   }
 
-  var html = '';
+  var html = '<select class="lib-select" id="librarySelect" onchange="onLibrarySelectChange(this)">';
   for (var g = 0; g < groupOrder.length; g++) {
     var gName = groupOrder[g];
     var count = groups[gName];
-    html += '<div class="item" data-libname="' + escHtml(gName) + '" onclick="selectLibrary(this)">' +
-              '<input type="radio" name="librarySelect" style="pointer-events:none;accent-color:var(--purple)">' +
-              '<div style="flex:1"><div class="item-name">' + escHtml(gName) + '</div>' +
-              '<div class="item-sub">' + count + ' collezioni</div></div>' +
-            '</div>';
+    html += '<option value="' + escHtml(gName) + '">' + escHtml(gName) + ' (' + count + ' collezioni)</option>';
   }
+  html += '</select>';
   container.innerHTML = html;
 
-  // Ripristina selezione visiva se la libreria era già selezionata
+  // Ripristina selezione se già selezionata, altrimenti seleziona la prima disponibile
+  var selectEl = document.getElementById('librarySelect');
   if (state.selectedLibraryName) {
-    var items = document.querySelectorAll('#libList .item');
-    for (var ri = 0; ri < items.length; ri++) {
-      if (items[ri].getAttribute('data-libname') === state.selectedLibraryName) {
-        items[ri].classList.add('sel-lib');
-        items[ri].querySelector('input').checked = true;
-        break;
-      }
-    }
+    selectEl.value = state.selectedLibraryName;
+  } else if (groupOrder.length > 0) {
+    selectEl.value = groupOrder[0];
+    onLibrarySelectChange(selectEl);
+    return;
   }
 }
 
-function selectLibrary(el) {
-  var libName = el.getAttribute('data-libname');
-  // Toggle: se era già selezionata, deseleziona e svuota
-  if (state.selectedLibraryName === libName) {
-    el.classList.remove('sel-lib');
-    el.querySelector('input').checked = false;
+function onLibrarySelectChange(el) {
+  var libName = el.value;
+  if (!libName) {
     state.selectedLibraryName = null;
     state.selectedLibKeys = [];
     document.getElementById('collectionsBlock').style.display = 'none';
@@ -643,18 +641,7 @@ function selectLibrary(el) {
     updateNext();
     return;
   }
-  // Deseleziona tutti gli item della lista librerie
-  var allItems = document.querySelectorAll('#libList .item');
-  for (var i = 0; i < allItems.length; i++) {
-    allItems[i].classList.remove('sel-lib');
-    var r = allItems[i].querySelector('input[type="radio"]');
-    if (r) { r.checked = false; }
-  }
-  // Seleziona il nuovo
   state.selectedLibraryName = libName;
-  el.classList.add('sel-lib');
-  el.querySelector('input').checked = true;
-  // Auto-seleziona tutte le collezioni della libreria scelta
   state.selectedLibKeys = [];
   var libCols = [];
   for (var j = 0; j < state.libraryCollections.length; j++) {
@@ -666,6 +653,8 @@ function selectLibrary(el) {
   renderCollections(libCols);
   updateNext();
 }
+
+
 
 function renderCollections(cols) {
   var block = document.getElementById('collectionsBlock');
@@ -680,7 +669,27 @@ function renderCollections(cols) {
             '</div>';
   }
   list.innerHTML = html;
+  document.getElementById('toggleAllCollBtn').textContent = 'Nessuna';
   block.style.display = '';
+}
+
+function toggleAllCollections() {
+  var allKeys = [];
+  for (var i = 0; i < state.libraryCollections.length; i++) {
+    if (state.libraryCollections[i].libraryName === state.selectedLibraryName) {
+      allKeys.push(state.libraryCollections[i].key);
+    }
+  }
+  var allSelected = (state.selectedLibKeys.length === allKeys.length);
+  state.selectedLibKeys = allSelected ? [] : allKeys.slice();
+  var items = document.querySelectorAll('#collectionsList .item');
+  for (var j = 0; j < items.length; j++) {
+    var chk = items[j].querySelector('input');
+    if (allSelected) { items[j].classList.remove('sel-lib'); chk.checked = false; }
+    else             { items[j].classList.add('sel-lib');    chk.checked = true;  }
+  }
+  document.getElementById('toggleAllCollBtn').textContent = allSelected ? 'Tutte' : 'Nessuna';
+  updateNext();
 }
 
 function toggleLib(el) {
@@ -697,6 +706,13 @@ function toggleLib(el) {
     chk.checked = false;
     el.classList.remove('sel-lib');
   }
+  // Aggiorna testo pulsante Tutte/Nessuna
+  var allKeys = 0;
+  for (var i = 0; i < state.libraryCollections.length; i++) {
+    if (state.libraryCollections[i].libraryName === state.selectedLibraryName) { allKeys++; }
+  }
+  var btn = document.getElementById('toggleAllCollBtn');
+  if (btn) { btn.textContent = (state.selectedLibKeys.length === allKeys) ? 'Nessuna' : 'Tutte'; }
   updateNext();
 }
 
@@ -735,12 +751,8 @@ function switchMode(mode) {
   if (cb) { cb.style.display = 'none'; }
   var cl = document.getElementById('collectionsList');
   if (cl) { cl.innerHTML = ''; }
-  var libItems = document.querySelectorAll('#libList .item');
-  for (var li = 0; li < libItems.length; li++) {
-    libItems[li].classList.remove('sel-lib');
-    var lr = libItems[li].querySelector('input[type="radio"]');
-    if (lr) { lr.checked = false; }
-  }
+  var libSel = document.getElementById('librarySelect');
+  if (libSel) { libSel.value = ''; }
   state.includeColorStyles = false; state.includeEffectStyles = false; state.includeGridStyles = false;
   var csChk = document.getElementById('csCheckbox'); if (csChk) { csChk.checked = false; }
   var csItem = document.getElementById('csToggleItem'); if (csItem) { csItem.classList.remove('sel-local'); }
@@ -1092,7 +1104,7 @@ function renderPreviewTable(rows) {
     html += '<tr class="group-row" data-group="' + gKeyAttr + '" onclick="toggleAccordion(\'' + gKeyJs + '\')">'
       + '<td class="chk-cell">' + gChkHtml + '</td>'
       + '<td colspan="3" class="group-td"><div class="group-cell">'
-        + '<span class="chevron open">&#9654;</span>'
+        + '<span class="chevron">&#9654;</span>'
         + '<span class="group-name">' + gKeyAttr + '</span>'
       + '</div></td>'
       + '<td class="status-cell" style="padding:5px 10px"><span class="group-badge">' + badgeText + '</span></td>'
@@ -1124,7 +1136,7 @@ function renderPreviewTable(rows) {
       var chkHtml = r.canRemap
         ? '<td class="chk-cell"><input type="checkbox"' + (state.selectedRowIds[r.localId] ? ' checked' : '') + ' style="cursor:pointer;accent-color:var(--accent)" onclick="toggleRow(event,\'' + rIdJs + '\')"  ></td>'
         : '<td class="chk-cell"></td>';
-      var rowCls = 'token-row' + (r.canRemap ? ' selectable' + rowCheckedCls : '');
+      var rowCls = 'token-row row-hidden' + (r.canRemap ? ' selectable' + rowCheckedCls : '');
       html += '<tr class="' + rowCls + '" data-group="' + gKeyAttr + '" onclick="rowClick(event,\'' + rIdJs + '\',this)">' +
         chkHtml +
         '<td class="mono">' + escHtml(r.localName) + '</td><td class="arrow">→</td>' +
@@ -1231,7 +1243,7 @@ function renderTextStylesTable(styles) {
     html += '<tr class="group-row" data-stgroup="' + gKeyAttr + '" onclick="toggleStyleAccordion(\'' + gKeyJs + '\')">' +
       '<td class="chk-cell">' + gChkHtml + '</td>' +
       '<td colspan="3" class="group-td"><div class="group-cell">' +
-        '<span class="chevron open">&#9654;</span>' +
+        '<span class="chevron">&#9654;</span>' +
         '<span class="group-name">' + gKeyAttr + '</span>' +
       '</div></td>' +
       '<td class="status-cell" style="padding:5px 10px"><span class="group-badge">' + badgeText + '</span></td>' +
@@ -1250,7 +1262,7 @@ function renderTextStylesTable(styles) {
       var targetHtml = r.remappableCount > 0
         ? '<td class="target">' + escHtml(r.fieldSummary) + '</td>'
         : '<td class="target dim">—</td>';
-      var rowCls = 'token-row' + (r.canRemap ? ' selectable' + rowCheckedCls : '');
+      var rowCls = 'token-row row-hidden' + (r.canRemap ? ' selectable' + rowCheckedCls : '');
       html += '<tr class="' + rowCls + '" data-stgroup="' + gKeyAttr + '" onclick="styleRowClick(event,\'' + sIdJs + '\',this)">' +
         chkHtml +
         '<td class="mono">' + escHtml(r.styleName) + '</td><td class="arrow">→</td>' +
@@ -1417,7 +1429,7 @@ function renderGenericStylesTable(styles, bodyId, countId, selectedIdsKey, openG
     html += '<tr class="group-row" data-' + rowAttr + '="' + gKeyAttr + '" onclick="' + accordionFn + '(\'' + gKeyJs + '\')">' +
       '<td class="chk-cell">' + gChkHtml + '</td>' +
       '<td colspan="3" class="group-td"><div class="group-cell">' +
-        '<span class="chevron open">&#9654;</span>' +
+        '<span class="chevron">&#9654;</span>' +
         '<span class="group-name">' + gKeyAttr + '</span>' +
       '</div></td>' +
       '<td class="status-cell" style="padding:5px 10px"><span class="group-badge">' + badgeText + '</span></td>' +
@@ -1437,7 +1449,7 @@ function renderGenericStylesTable(styles, bodyId, countId, selectedIdsKey, openG
       var targetHtml = r.remappableCount > 0
         ? '<td class="target">' + escHtml(r.fieldSummary) + '</td>'
         : '<td class="target dim">—</td>';
-      var rowCls = 'token-row' + (r.canRemap ? ' selectable' + rowCheckedCls : '');
+      var rowCls = 'token-row row-hidden' + (r.canRemap ? ' selectable' + rowCheckedCls : '');
       html += '<tr class="' + rowCls + '" data-' + rowAttr + '="' + gKeyAttr + '" onclick="' + rowClickFn + '(event,\'' + sIdJs + '\',this)">' +
         chkHtml +
         '<td class="mono">' + escHtml(r.styleName) + '</td><td class="arrow">→</td>' +

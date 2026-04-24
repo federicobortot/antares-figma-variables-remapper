@@ -22,6 +22,7 @@ Il plugin consente di rimappare le variabili delle collezioni locali di un file 
 - Se non è possibile risolvere la variabile referenziata in nessun modo, viene segnalata come "Irrisolvibile".
 - Una variabile che punta già a una variabile locale viene segnalata come "Già locale" e non viene toccata.
 - Se due variabili locali hanno lo stesso nome, ha la precedenza la variabile **non remote** (cioè definita nel file corrente, non importata).
+- **Nota:** se esistono due variabili non-remote con lo stesso nome in collezioni diverse, la variabile target risultante è indeterminata (dipende dall'ordine restituito dall'API Figma). Da fixare in futuro.
 
 ---
 
