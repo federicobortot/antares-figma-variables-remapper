@@ -88,34 +88,72 @@ function buildFoundationsMap(libraryCollectionKeys, cb, cbErr) {
 // ---------------------------------------------------------------------------
 // Execute stili di testo modalità reverse (sincrono)
 // ---------------------------------------------------------------------------
-function executeTextStylesReverse(selectedStyleIds, maps, accumulator, log) {
+function executeTextStylesReverse(selectedStyleIds, maps, accumulator, log, callback) {
   var selectedIdSet = buildIdSet(selectedStyleIds);
   var styles = figma.getLocalTextStyles();
+
+  // Pre-build tasks and collect fields to remap
+  var tasks = [];
   for (var i = 0; i < styles.length; i++) {
     var style = styles[i];
     if (!selectedIdSet[style.id]) { continue; }
-    var didRemap = false;
-    try {
-      var boundFields = Object.keys(style.boundVariables);
-      for (var f = 0; f < boundFields.length; f++) {
-        var field = boundFields[f];
-        var binding = style.boundVariables[field];
-        if (!binding) { continue; }
-        var sourceVar = maps.localVarById[binding.id] || figma.variables.getVariableById(binding.id);
-        if (!sourceVar) { continue; }
-        var localTarget = maps.targetVarByName[sourceVar.name];
-        if (localTarget) {
-          style.setBoundVariable(field, localTarget);
-          log.push('[OK-STYLE] ' + style.name + ' | ' + field + ' | ' + sourceVar.name + ' → ' + localTarget.name);
-          didRemap = true;
-        }
-      }
-      if (didRemap) { accumulator.remappedTextStyles++; } else { accumulator.skipped++; }
-    } catch(e) {
-      log.push('[ERR-STYLE] ' + style.name + ' | ' + String(e));
-      accumulator.errors.push({ name: style.name, error: String(e) });
+    var fieldsToRemap = [];
+    var boundFields = Object.keys(style.boundVariables);
+    for (var f = 0; f < boundFields.length; f++) {
+      var field = boundFields[f];
+      var binding = style.boundVariables[field];
+      if (!binding) { continue; }
+      var sourceVar = maps.localVarById[binding.id] || figma.variables.getVariableById(binding.id);
+      if (!sourceVar) { continue; }
+      var localTarget = maps.targetVarByName[sourceVar.name];
+      if (localTarget) { fieldsToRemap.push({ field: field, localTarget: localTarget, prevName: sourceVar.name }); }
+    }
+    if (fieldsToRemap.length > 0) { tasks.push({ style: style, fields: fieldsToRemap }); }
+    else { accumulator.skipped++; }
+  }
+
+  // Collect unique fonts used by all styles to remap
+  var fontsMap = createSafeMap();
+  var fontsToLoad = [];
+  for (var t = 0; t < tasks.length; t++) {
+    var fn = tasks[t].style.fontName;
+    if (fn && fn.family) {
+      var fk = fn.family + '|' + fn.style;
+      if (!fontsMap[fk]) { fontsMap[fk] = true; fontsToLoad.push(fn); }
     }
   }
+
+  var fontIndex = 0;
+  function loadNextFont() {
+    if (fontIndex >= fontsToLoad.length) {
+      // All fonts loaded — apply remaps
+      for (var t2 = 0; t2 < tasks.length; t2++) {
+        var task = tasks[t2];
+        try {
+          for (var f2 = 0; f2 < task.fields.length; f2++) {
+            var fd = task.fields[f2];
+            task.style.setBoundVariable(fd.field, fd.localTarget);
+            log.push('[OK-STYLE] ' + task.style.name + ' | ' + fd.field + ' | ' + fd.prevName + ' → ' + fd.localTarget.name);
+          }
+          accumulator.remappedTextStyles++;
+        } catch(e) {
+          log.push('[ERR-STYLE] ' + task.style.name + ' | ' + String(e));
+          accumulator.errors.push({ name: task.style.name, error: String(e) });
+        }
+      }
+      callback();
+      return;
+    }
+    var font = fontsToLoad[fontIndex];
+    fontIndex++;
+    figma.loadFontAsync(font)
+      .then(function() { loadNextFont(); })
+      .catch(function(err) {
+        log.push('[WARN-FONT] ' + font.family + ' ' + font.style + ' | ' + String(err));
+        loadNextFont();
+      });
+  }
+  loadNextFont();
 }
 
 // ---------------------------------------------------------------------------
@@ -240,10 +278,10 @@ function analyzeColorStylesReverse(targetVarByName, localVarById) {
     for (var p = 0; p < bindings.length; p++) {
       var b = bindings[p];
       if (!b) { continue; }
-      var sourceVar = localVarById[b.id] || figma.variables.getVariableById(b.id);
+      if (localVarById[b.id]) { alreadyLocal++; continue; }
+      var sourceVar = figma.variables.getVariableById(b.id);
       if (!sourceVar) { continue; }
       if (targetVarByName[sourceVar.name]) { remappable++; }
-      else if (localVarById[b.id]) { alreadyLocal++; }
     }
     var canRemap = remappable > 0;
     var primaryStatus = canRemap ? 'remap' : (alreadyLocal > 0 ? 'already_local' : 'no_match');
@@ -267,10 +305,10 @@ function analyzeEffectStylesReverse(targetVarByName, localVarById) {
     for (var e = 0; e < bindings.length; e++) {
       var b = bindings[e];
       if (!b) { continue; }
-      var sourceVar = localVarById[b.id] || figma.variables.getVariableById(b.id);
+      if (localVarById[b.id]) { alreadyLocal++; continue; }
+      var sourceVar = figma.variables.getVariableById(b.id);
       if (!sourceVar) { continue; }
       if (targetVarByName[sourceVar.name]) { remappable++; }
-      else if (localVarById[b.id]) { alreadyLocal++; }
     }
     var canRemap = remappable > 0;
     var primaryStatus = canRemap ? 'remap' : (alreadyLocal > 0 ? 'already_local' : 'no_match');
@@ -294,10 +332,10 @@ function analyzeGridStylesReverse(targetVarByName, localVarById) {
     for (var g = 0; g < bindings.length; g++) {
       var b = bindings[g];
       if (!b) { continue; }
-      var sourceVar = localVarById[b.id] || figma.variables.getVariableById(b.id);
+      if (localVarById[b.id]) { alreadyLocal++; continue; }
+      var sourceVar = figma.variables.getVariableById(b.id);
       if (!sourceVar) { continue; }
       if (targetVarByName[sourceVar.name]) { remappable++; }
-      else if (localVarById[b.id]) { alreadyLocal++; }
     }
     var canRemap = remappable > 0;
     var primaryStatus = canRemap ? 'remap' : (alreadyLocal > 0 ? 'already_local' : 'no_match');
@@ -1011,14 +1049,16 @@ function analyzeTextStylesReverse(targetVarByName, localVarById) {
       var binding = style.boundVariables[field];
       if (!binding) { continue; }
       allBound++;
-      var sourceVar = localVarById[binding.id] || figma.variables.getVariableById(binding.id);
+      if (localVarById[binding.id]) {
+        // il binding punta già a una variabile locale → già rimappato
+        alreadyLocalCount++;
+        continue;
+      }
+      var sourceVar = figma.variables.getVariableById(binding.id);
       if (!sourceVar) { continue; }
       var localTarget = targetVarByName[sourceVar.name];
       if (localTarget) {
         remappableFields.push({ field: field, aliasTargetName: sourceVar.name, localTargetId: localTarget.id });
-      } else if (localVarById[binding.id]) {
-        // il binding punta già a una variabile locale
-        alreadyLocalCount++;
       }
     }
     if (allBound === 0) { continue; }
@@ -1189,17 +1229,23 @@ function handleExecuteRemapReverse(payload) {
   }
 
   var acc = { remappedTextStyles: 0, remappedColorStyles: 0, remappedEffectStyles: 0, remappedGridStyles: 0, skipped: skipped, errors: errors };
+
+  function finishReverse() {
+    if (payload.selectedColorStyleIds && payload.selectedColorStyleIds.length > 0) {
+      executeColorStylesReverse(payload.selectedColorStyleIds, maps, acc, log);
+    }
+    if (payload.selectedEffectStyleIds && payload.selectedEffectStyleIds.length > 0) {
+      executeEffectStylesReverse(payload.selectedEffectStyleIds, maps, acc, log);
+    }
+    if (payload.selectedGridStyleIds && payload.selectedGridStyleIds.length > 0) {
+      executeGridStylesReverse(payload.selectedGridStyleIds, maps, acc, log);
+    }
+    postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedTextStyles: acc.remappedTextStyles, remappedColorStyles: acc.remappedColorStyles, remappedEffectStyles: acc.remappedEffectStyles, remappedGridStyles: acc.remappedGridStyles, skipped: acc.skipped, errors: acc.errors, total: analysis.length, log: log });
+  }
+
   if (payload.selectedStyleIds && payload.selectedStyleIds.length > 0) {
-    executeTextStylesReverse(payload.selectedStyleIds, maps, acc, log);
+    executeTextStylesReverse(payload.selectedStyleIds, maps, acc, log, finishReverse);
+  } else {
+    finishReverse();
   }
-  if (payload.selectedColorStyleIds && payload.selectedColorStyleIds.length > 0) {
-    executeColorStylesReverse(payload.selectedColorStyleIds, maps, acc, log);
-  }
-  if (payload.selectedEffectStyleIds && payload.selectedEffectStyleIds.length > 0) {
-    executeEffectStylesReverse(payload.selectedEffectStyleIds, maps, acc, log);
-  }
-  if (payload.selectedGridStyleIds && payload.selectedGridStyleIds.length > 0) {
-    executeGridStylesReverse(payload.selectedGridStyleIds, maps, acc, log);
-  }
-  postToUI('EXECUTE_RESULT', { remappedVars: remappedVars, remappedTextStyles: acc.remappedTextStyles, remappedColorStyles: acc.remappedColorStyles, remappedEffectStyles: acc.remappedEffectStyles, remappedGridStyles: acc.remappedGridStyles, skipped: acc.skipped, errors: acc.errors, total: analysis.length, log: log });
 }

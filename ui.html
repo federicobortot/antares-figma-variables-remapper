@@ -252,7 +252,7 @@ tr.row-hidden { display: none; }
 
 <!-- STEP 2 -->
 <div id="step2" class="body" style="display:none">
-  <div class="preview-card">
+<div id="variablesCard" class="preview-card">
     <div class="stats-row">
       <div class="stat"><div class="stat-n green" id="sRemap">–</div><div class="stat-l">Da rimappare</div></div>
       <div class="stat"><div class="stat-n red" id="sNoMatch">–</div><div class="stat-l">No match</div></div>
@@ -850,6 +850,9 @@ function onPreviewResult(data) {
 
   renderPreviewTable(getFilteredRows());
   syncHeaderCheckbox();
+  // Se non ci sono righe di variabili, il card non deve espandersi e nascondere le sezioni stili
+  var variablesCard = document.getElementById('variablesCard');
+  variablesCard.style.flex = (data.rows.length > 0) ? '1' : '0 0 auto';
   if (s.noMatch > 0) { document.getElementById('notice2').style.display = 'block'; }
 
   state.previewTextStyles = data.textStyles || [];
