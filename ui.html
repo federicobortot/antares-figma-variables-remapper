@@ -159,8 +159,7 @@ tr.row-hidden { display: none; }
 <body>
 
 <div class="header">
-  <h1 id="headerTitle">Token Remapper → Foundations</h1>
-  <p id="headerDesc">Segue la catena di alias dalle component token verso le token Foundations (semantic, primitive o altro), cercandole per nome in tutte le collezioni selezionate.</p>
+  <h1 id="headerTitle">Token Remapper</h1>
   <div class="mode-toggle" style="margin-top:10px">
     <button id="modeForward" class="mode-btn active" onclick="switchMode('forward')">Locale → Foundations</button>
     <button id="modeReverse" class="mode-btn" onclick="switchMode('reverse')">Foundations → Locale</button>
@@ -222,15 +221,17 @@ tr.row-hidden { display: none; }
     <div class="col-right" id="libSection">
       <div>
         <div class="label-row">
-          <div class="label">Foundations</div>
-          <button class="select-all-btn" id="selAllBtn" onclick="selectAllLibs()" style="display:none">Tutte</button>
+          <div class="label">Libreria target</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:5px">
+          <button class="btn" id="reloadLibBtn" onclick="reloadLibraries()" style="font-size:10px;padding:4px 9px">&#8635; Ricarica</button>
         </div>
         <div id="libList">
           <div class="loader"><div class="spin"></div>Caricamento…</div>
         </div>
-        <div style="margin-top:6px;display:flex;align-items:center;justify-content:space-between">
-          <div id="pillsArea" class="selected-pills" style="flex:1"></div>
-          <button class="btn" id="reloadLibBtn" onclick="reloadLibraries()" style="font-size:10px;padding:4px 9px;flex-shrink:0;margin-left:6px">&#8635;</button>
+        <div id="collectionsBlock" style="display:none;margin-top:10px">
+          <div class="label">Collezioni</div>
+          <div class="item-list" id="collectionsList"></div>
         </div>
       </div>
     </div>
@@ -436,7 +437,8 @@ var state = {
   previewGridStyles: [],
   selectedGridStyleIds: {},
   openGridStyleGroups: {},
-  gridStyleGroupKeys: []
+  gridStyleGroupKeys: [],
+  selectedLibraryName: null
 };
 
 window.onmessage = function(event) {
@@ -569,9 +571,10 @@ function reloadLibraries() {
   var btn = document.getElementById('reloadLibBtn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   document.getElementById('libList').innerHTML = '<div class="loader"><div class="spin"></div>Ricerca librerie…</div>';
-  document.getElementById('selAllBtn').style.display = 'none';
+  document.getElementById('collectionsBlock').style.display = 'none';
+  document.getElementById('collectionsList').innerHTML = '';
   state.selectedLibKeys = [];
-  renderPills();
+  state.selectedLibraryName = null;
   updateNext();
   send('LOAD_LIBRARY_COLLECTIONS');
 }
@@ -586,7 +589,6 @@ function onLibraryCollections(collections) {
   state.libraryCollections = collections;
   var btn = document.getElementById('reloadLibBtn');
   if (btn) { btn.disabled = false; btn.innerHTML = '&#8635; Ricarica'; }
-  document.getElementById('selAllBtn').style.display = collections.length ? '' : 'none';
 
   var container = document.getElementById('libList');
   if (!collections.length) {
@@ -594,32 +596,91 @@ function onLibraryCollections(collections) {
     return;
   }
 
-  // Raggruppa per libraryName
+  // Raggruppa per libraryName — mostra una riga per libreria (single-select)
   var groups = Object.create(null);
   var groupOrder = [];
   for (var i = 0; i < collections.length; i++) {
     var libName = collections[i].libraryName;
-    if (!groups[libName]) { groups[libName] = []; groupOrder.push(libName); }
-    groups[libName].push(collections[i]);
+    if (!groups[libName]) { groups[libName] = 0; groupOrder.push(libName); }
+    groups[libName]++;
   }
 
   var html = '';
   for (var g = 0; g < groupOrder.length; g++) {
     var gName = groupOrder[g];
-    var gCols = groups[gName];
-    // Intestazione gruppo se ci sono più librerie
-    if (groupOrder.length > 1) {
-      html += '<div style="font-size:10px;color:var(--muted);margin:7px 0 4px;font-weight:600;padding-left:2px">📁 ' + escHtml(gName) + '</div>';
-    }
-    for (var j = 0; j < gCols.length; j++) {
-      var c = gCols[j];
-      html += '<div class="item" id="li-' + c.key + '" data-key="' + c.key + '" data-name="' + escHtml(c.name) + '" onclick="toggleLib(this)">' +
-                '<input type="checkbox">' +
-                '<div class="item-name">' + escHtml(c.name) + '</div>' +
-              '</div>';
-    }
+    var count = groups[gName];
+    html += '<div class="item" data-libname="' + escHtml(gName) + '" onclick="selectLibrary(this)">' +
+              '<input type="radio" name="librarySelect" style="pointer-events:none;accent-color:var(--purple)">' +
+              '<div style="flex:1"><div class="item-name">' + escHtml(gName) + '</div>' +
+              '<div class="item-sub">' + count + ' collezioni</div></div>' +
+            '</div>';
   }
   container.innerHTML = html;
+
+  // Ripristina selezione visiva se la libreria era già selezionata
+  if (state.selectedLibraryName) {
+    var items = document.querySelectorAll('#libList .item');
+    for (var ri = 0; ri < items.length; ri++) {
+      if (items[ri].getAttribute('data-libname') === state.selectedLibraryName) {
+        items[ri].classList.add('sel-lib');
+        items[ri].querySelector('input').checked = true;
+        break;
+      }
+    }
+  }
+}
+
+function selectLibrary(el) {
+  var libName = el.getAttribute('data-libname');
+  // Toggle: se era già selezionata, deseleziona e svuota
+  if (state.selectedLibraryName === libName) {
+    el.classList.remove('sel-lib');
+    el.querySelector('input').checked = false;
+    state.selectedLibraryName = null;
+    state.selectedLibKeys = [];
+    document.getElementById('collectionsBlock').style.display = 'none';
+    document.getElementById('collectionsList').innerHTML = '';
+    updateNext();
+    return;
+  }
+  // Deseleziona tutti gli item della lista librerie
+  var allItems = document.querySelectorAll('#libList .item');
+  for (var i = 0; i < allItems.length; i++) {
+    allItems[i].classList.remove('sel-lib');
+    var r = allItems[i].querySelector('input[type="radio"]');
+    if (r) { r.checked = false; }
+  }
+  // Seleziona il nuovo
+  state.selectedLibraryName = libName;
+  el.classList.add('sel-lib');
+  el.querySelector('input').checked = true;
+  // Auto-seleziona tutte le collezioni della libreria scelta
+  state.selectedLibKeys = [];
+  var libCols = [];
+  for (var j = 0; j < state.libraryCollections.length; j++) {
+    if (state.libraryCollections[j].libraryName === libName) {
+      state.selectedLibKeys.push(state.libraryCollections[j].key);
+      libCols.push(state.libraryCollections[j]);
+    }
+  }
+  renderCollections(libCols);
+  updateNext();
+}
+
+function renderCollections(cols) {
+  var block = document.getElementById('collectionsBlock');
+  var list = document.getElementById('collectionsList');
+  if (!cols.length) { block.style.display = 'none'; return; }
+  var html = '';
+  for (var i = 0; i < cols.length; i++) {
+    var c = cols[i];
+    html += '<div class="item sel-lib" id="li-' + c.key + '" data-key="' + c.key + '" data-name="' + escHtml(c.name) + '" onclick="toggleLib(this)">' +
+              '<input type="checkbox" checked style="pointer-events:none;accent-color:var(--purple)">' +
+              '<div class="item-name">' + escHtml(c.name) + '</div>' +
+            '</div>';
+  }
+  list.innerHTML = html;
+  block.style.display = '';
 }
 
 function toggleLib(el) {
@@ -636,54 +697,6 @@ function toggleLib(el) {
     chk.checked = false;
     el.classList.remove('sel-lib');
   }
-  renderPills();
-  updateNext();
-}
-
-function selectAllLibs() {
-  var items = document.querySelectorAll('#libList .item');
-  var allSelected = (state.selectedLibKeys.length === state.libraryCollections.length);
-  state.selectedLibKeys = [];
-  for (var i = 0; i < items.length; i++) {
-    var el = items[i];
-    var key = el.getAttribute('data-key');
-    var chk = el.querySelector('input');
-    if (allSelected) {
-      chk.checked = false;
-      el.classList.remove('sel-lib');
-    } else {
-      state.selectedLibKeys.push(key);
-      chk.checked = true;
-      el.classList.add('sel-lib');
-    }
-  }
-  document.getElementById('selAllBtn').textContent = allSelected ? 'Seleziona tutte' : 'Deseleziona tutte';
-  renderPills();
-  updateNext();
-}
-
-function renderPills() {
-  var area = document.getElementById('pillsArea');
-  if (!state.selectedLibKeys.length) { area.innerHTML = ''; return; }
-  var html = '';
-  for (var i = 0; i < state.selectedLibKeys.length; i++) {
-    var key = state.selectedLibKeys[i];
-    var el = document.getElementById('li-' + key);
-    var name = el ? el.getAttribute('data-name') : key;
-    html += '<span class="pill">' + escHtml(name) + '<span class="pill-x" onclick="removePill(\'' + key + '\')">×</span></span>';
-  }
-  area.innerHTML = html;
-}
-
-function removePill(key) {
-  var el = document.getElementById('li-' + key);
-  if (el) {
-    el.querySelector('input').checked = false;
-    el.classList.remove('sel-lib');
-  }
-  var idx = state.selectedLibKeys.indexOf(key);
-  if (idx !== -1) { state.selectedLibKeys.splice(idx, 1); }
-  renderPills();
   updateNext();
 }
 
@@ -716,7 +729,18 @@ function switchMode(mode) {
   state.mode = mode;
   state.selectedLocalIds = [];
   state.selectedLibKeys = [];
+  state.selectedLibraryName = null;
   state.previewStats = null;
+  var cb = document.getElementById('collectionsBlock');
+  if (cb) { cb.style.display = 'none'; }
+  var cl = document.getElementById('collectionsList');
+  if (cl) { cl.innerHTML = ''; }
+  var libItems = document.querySelectorAll('#libList .item');
+  for (var li = 0; li < libItems.length; li++) {
+    libItems[li].classList.remove('sel-lib');
+    var lr = libItems[li].querySelector('input[type="radio"]');
+    if (lr) { lr.checked = false; }
+  }
   state.includeColorStyles = false; state.includeEffectStyles = false; state.includeGridStyles = false;
   var csChk = document.getElementById('csCheckbox'); if (csChk) { csChk.checked = false; }
   var csItem = document.getElementById('csToggleItem'); if (csItem) { csItem.classList.remove('sel-local'); }
@@ -727,10 +751,6 @@ function switchMode(mode) {
 
   document.getElementById('modeForward').className = 'mode-btn' + (mode === 'forward' ? ' active' : '');
   document.getElementById('modeReverse').className = 'mode-btn' + (mode === 'reverse' ? ' active' : '');
-  document.getElementById('headerTitle').textContent = mode === 'forward' ? 'Token Remapper → Foundations' : 'Token Remapper ← Locale';
-  document.getElementById('headerDesc').textContent = mode === 'forward'
-    ? 'Segue la catena di alias dalle component token verso le token Foundations, cercandole per nome.'
-    : 'Reindirizza gli alias dalle variabili Foundations alle token locali omonime.';
 
   var isForward = (mode === 'forward');
   document.getElementById('step1Forward').style.display = isForward ? 'flex' : 'none';
@@ -818,6 +838,10 @@ function doPreview() {
     : 'Analisi in corso su ' + state.selectedLibKeys.length + ' collez. Foundations…';
   document.getElementById('previewBody').innerHTML =
     '<tr><td colspan="5"><div class="loader" style="padding:6px 0"><div class="spin"></div>' + loadingMsg + '</div></td></tr>';
+  document.getElementById('sRemap').textContent      = '–';
+  document.getElementById('sNoMatch').textContent    = '–';
+  document.getElementById('sNoAlias').textContent    = '–';
+  document.getElementById('sAlreadyLib').textContent = '–';
   setStep(2);
   document.getElementById('btnNext').disabled = true;
   if (isReverse) {

@@ -43,13 +43,15 @@ Il plugin consente di rimappare le variabili delle collezioni locali di un file 
   - Attivare o disattivare questa checkbox abilita/disabilita immediatamente il pulsante "Avanti".
 
 ### 3.3 Colonna destra — librerie Foundations (solo forward)
-- Elenco delle collezioni disponibili nelle librerie di team, raggruppate per nome di libreria.
 - Le librerie vengono **caricate automaticamente** all'apertura del plugin, senza richiedere azioni all'utente.
 - Durante il caricamento viene mostrato un indicatore visivo (loader).
 - Pulsante **↺ Ricarica** per ricaricare manualmente le librerie (utile se una libreria viene abilitata dopo l'apertura).
 - In caso di errore di caricamento, viene mostrato un messaggio esplicativo e il pulsante Ricarica rimane disponibile.
-- Le collezioni selezionate appaiono come **pillole rimovibili** riepilogative sopra la lista.
-- Pulsante **"Seleziona tutte"** visibile solo quando le librerie sono caricate.
+- La lista mostra **una riga per libreria** (non le singole collezioni): nome della libreria e numero di collezioni disponibili.
+- Si può selezionare **una sola libreria alla volta** (single-select con radio visivo). Cliccare sulla libreria già selezionata la deseleziona.
+- Dopo aver selezionato una libreria, appare un blocco **Collezioni** con tutte le sue collezioni **pre-selezionate**.
+- Si può affinare la selezione deselezionando singole collezioni; almeno una deve rimanere selezionata per procedere.
+- Cambiare libreria sostituisce completamente il blocco Collezioni con quelle della nuova libreria, tutte pre-selezionate.
 
 ### 3.4 Condizioni per procedere allo step 2
 - **Forward**: almeno un elemento della colonna sinistra (una collezione locale **oppure** la spunta "Includi stili di testo") **e** almeno una collezione dalla colonna destra.
@@ -147,4 +149,11 @@ Il plugin consente di rimappare le variabili delle collezioni locali di un file 
 - **Sezione "Stili" espansa**: oltre agli stili di testo, gestire anche grid styles, color styles, effect styles. Il nome "Stili" (anziché "Stili di testo") è stato scelto esplicitamente per questa espansione futura.
 - Eventuale supporto a librerie esterne anche in modalità reverse.
 - **Ridimensionamento della finestra del plugin**: l'utente dovrebbe poter trascinare un bordo o un angolo per ridimensionare la finestra del plugin. Tentativi di implementazione falliti a causa dei limiti di Figma (gli eventi mouse non attraversano il confine iframe → nessuna possibilità di intercettare il drag con puro JavaScript lato UI). Richiede una soluzione alternativa (es. preset di dimensioni, handle che invia coordinate tramite postMessage al backend, oppure un supporto nativo di Figma in futuro).
+- **Librerie non visibili finché non si ricarica il tab Figma**: `getAvailableLibraryVariableCollectionsAsync()` legge i dati già in memoria nel tab corrente. Se una libreria viene abilitata (o pubblica nuove variabili) dopo l'apertura del tab, Figma non la riconosce finché il tab non viene ricaricato. Il pulsante ↺ Ricarica nel plugin ri-chiama l'API ma non forza un refresh del registro librerie lato Figma. Non esiste attualmente un'API Figma per forzare questo aggiornamento dall'interno di un plugin. **Workaround per l'utente: ricaricare il tab Figma.**
 
+TO DO:
+- aggiungere un selezionaTutti/deseleziona nella lista di collezioni di una libreria
+- convertire i radio in select con tendina (per semplicità)
+- step 1, colonna dx: mettere "ricarica" sullo stesso livello di "libreria target"
+- colonna sx:togliere righe orizzontali ai titoli "variabili" e "stili"
+- aggiungere supporto multilingue (ita-eng), con selettore in alto a destra del titolo (alla fine della riga)
